@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/log"
 )
 
 func ResponseMiddleware(c *fiber.Ctx) error {
@@ -16,6 +17,7 @@ func ResponseMiddleware(c *fiber.Ctx) error {
 			newResp := common.NewResponse(be.Code, be.Message, nil)
 			return c.JSON(newResp)
 		} else {
+			log.Error(err)
 			newResp := common.NewResponse(500, "Internal Server Error", nil)
 			return c.JSON(newResp)
 		}
