@@ -37,7 +37,7 @@ steps:
 
   - name: build dummy docker file and publish
     depends_on: [ build ]
-    image: plugins/docker
+    image: plugins/docker:latest
     pull: if-not-exists
     settings:
       registry: hub.ccw.es
