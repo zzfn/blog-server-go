@@ -10,3 +10,8 @@ go get -u github.com/lib/pq
 #卸载包
 go get -u github.com/lib/pq@none
 ```
+
+
+## 技术
+- https://uber-go.github.io/fx/get-started/
+- https://gofiber.io/
