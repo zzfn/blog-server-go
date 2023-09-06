@@ -35,7 +35,7 @@ steps:
       - apk add --no-cache make
       - make build
 
-  - name: build dummy docker file and publish
+  - name: build_docker
     depends_on: [ build ]
     image: plugins/docker:latest
     pull: if-not-exists
@@ -49,3 +49,20 @@ steps:
       tags:
         - ${DRONE_COMMIT_SHA:0:8}
         - latest
+  - name: ssh
+    image: appleboy/drone-ssh
+    depends_on:
+      - build_docker
+    settings:
+      host:
+        from_secret: k8s_host
+      username:
+        from_secret: k8s_username
+      key:
+        from_secret: k8s_key
+      port: 22
+      command_timeout: 2m
+      script:
+        - echo ${DRONE_COMMIT}${DRONE_BUILD_NUMBER}
+        - kubectl apply -f https://git.ccw.es/ccw/yaml/raw/branch/master/blog-server.yaml
+        - kubectl set image deployment/blog-server-deployment blog-server-container=hub.ccw.es/home/blog-server:${DRONE_COMMIT_SHA:0:8}

@@ -2,6 +2,7 @@ package main
 
 import (
 	"blog-server-go/config"
+	"blog-server-go/middleware"
 	"blog-server-go/routes"
 	"fmt"
 	"github.com/gofiber/fiber/v2"
@@ -10,6 +11,7 @@ import (
 func main() {
 	// 初始化 Fiber 应用
 	app := fiber.New()
+	app.Use(middleware.ResponseMiddleware)
 
 	// 初始化数据库连接
 	db, err := config.SetupDatabase()
