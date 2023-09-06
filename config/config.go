@@ -58,12 +58,13 @@ func SetupRedis() (*redis.Client, error) {
 }
 
 func SetupElasticsearch() (*elasticsearch.Client, error) {
+	esAddress := os.Getenv("ES_ADDRESS")
+	esUsername := os.Getenv("ES_USERNAME")
+	esPassword := os.Getenv("ES_PASSWORD")
 	cfg := elasticsearch.Config{
-		Addresses: []string{
-			"http://192.168.100.198:30015",
-		},
-		Username: "elastic",
-		Password: "seFQV1U8KxzBUj*5fFB1",
+		Addresses: []string{esAddress},
+		Username:  esUsername,
+		Password:  esPassword,
 	}
 
 	esClient, err := elasticsearch.NewClient(cfg)
