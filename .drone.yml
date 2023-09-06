@@ -45,7 +45,7 @@ steps:
         from_secret: nexus_docker_username
       password:
         from_secret: nexus_docker_password
-      repo: hub.ccw.es/home/blog-server-go
+      repo: hub.ccw.es/home/blog-server
       tags:
         - ${DRONE_COMMIT_SHA:0:8}
         - latest
