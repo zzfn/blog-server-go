@@ -3,6 +3,7 @@ package handlers
 import (
 	"blog-server-go/models"
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/log"
 	"gorm.io/gorm"
 )
 
@@ -18,5 +19,6 @@ func (ah *ArticleHandler) GetArticles(c *fiber.Ctx) error {
 	if result.Error != nil {
 		return c.Status(fiber.StatusInternalServerError).SendString(result.Error.Error())
 	}
+	log.Info("查询成功")
 	return c.JSON(articles)
 }
