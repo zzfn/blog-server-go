@@ -1,0 +1,12 @@
+## blog
+> go实现的blog-server
+> 
+> 
+> 
+## dev
+```bash
+安装包
+go get -u github.com/lib/pq
+#卸载包
+go get -u github.com/lib/pq@none
+```
