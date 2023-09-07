@@ -3,7 +3,8 @@ package main
 import (
 	"blog-server-go/common"
 	"blog-server-go/config"
-	"blog-server-go/handlers" // 假设这里包含 ArticleHandler
+	"blog-server-go/handlers"
+	"blog-server-go/kafka"
 	"blog-server-go/middleware"
 	"blog-server-go/routes"
 	"context"
@@ -16,7 +17,7 @@ import (
 	"gorm.io/gorm"
 )
 
-func RegisterHooks(lc fx.Lifecycle, app *fiber.App, sqlDB *sql.DB, redisClient *redis.Client) {
+func RegisterHooks(lc fx.Lifecycle, app *fiber.App, sqlDB *sql.DB, redisClient *redis.Client, kafkaConsumer *kafka.Consumer) {
 	lc.Append(fx.Hook{
 		OnStart: func(ctx context.Context) error {
 			go func() {
@@ -24,6 +25,8 @@ func RegisterHooks(lc fx.Lifecycle, app *fiber.App, sqlDB *sql.DB, redisClient *
 					log.Fatalf("Failed to start Fiber app: %v", err)
 				}
 			}()
+			// Kafka消费者启动逻辑
+			go kafkaConsumer.Start()
 			return nil
 		},
 		OnStop: func(ctx context.Context) error {
@@ -36,6 +39,8 @@ func RegisterHooks(lc fx.Lifecycle, app *fiber.App, sqlDB *sql.DB, redisClient *
 			if err := redisClient.Close(); err != nil {
 				log.Errorf("Error closing Redis client: %v", err)
 			}
+
+			kafkaConsumer.Close()
 			return app.Shutdown()
 		},
 	})
@@ -86,6 +91,8 @@ func main() {
 			NewRedisClient,
 			NewElasticsearchClient,
 			NewArticleHandler,
+			kafka.NewProducer, // 假设这是你初始化Kafka生产者的函数
+			kafka.NewConsumer, // 假设这是你初始化Kafka消费者的函数
 		),
 		// Invokes
 		fx.Invoke(RegisterHooks),
