@@ -8,7 +8,8 @@ import (
 // SetupArticleRoutes 设置与文章相关的路由
 func SetupArticleRoutes(app *fiber.App, handler handlers.ArticleHandler) {
 
-	article := app.Group("/post")
-	article.Get("/list", handler.GetArticles)
-	article.Get("/search", handler.SearchArticles)
+	v1 := app.Group("v1")
+	post := v1.Group("post")
+	post.Get("list", handler.GetArticles)
+	post.Get("search", handler.SearchArticles)
 }
