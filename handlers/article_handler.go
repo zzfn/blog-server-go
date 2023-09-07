@@ -25,7 +25,7 @@ type ArticleHandler struct {
 // GetArticles 获取所有文章
 func (ah *ArticleHandler) GetArticles(c *fiber.Ctx) error {
 	var articles []models.Article
-	result := ah.DB.Select("ID,TITLE,CONTENT").Find(&articles)
+	result := ah.DB.Select("ID,TITLE,CONTENT,TAG").Find(&articles)
 	if result.Error != nil {
 		log.Error(result.Error)
 		return c.Status(fiber.StatusInternalServerError).SendString(result.Error.Error())
