@@ -31,7 +31,7 @@ func SetupDatabase() (*gorm.DB, error) {
 		},
 	)
 
-	dsn := fmt.Sprintf("host=%s user=%s dbname=%s sslmode=disable password=%s", host, user, dbname, password)
+	dsn := fmt.Sprintf("host=%s user=%s dbname=%s sslmode=disable password=%s connect_timeout=5", host, user, dbname, password)
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
 		Logger: newLogger,
 		NamingStrategy: schema.NamingStrategy{

@@ -67,16 +67,27 @@ func NewRedisClient() *redis.Client {
 	return redisClient
 }
 
+func NewWebSocketHandler(db *gorm.DB, redis *redis.Client, es *elasticsearch.Client) *handlers.WebSocketHandler {
+	return &handlers.WebSocketHandler{
+		BaseHandler: handlers.BaseHandler{
+			DB:    db,
+			Redis: redis,
+			ES:    es,
+		},
+	}
+}
 func NewBaseHandler(db *gorm.DB, redisClient *redis.Client, esClient *elasticsearch.Client) handlers.BaseHandler {
 	return handlers.BaseHandler{DB: db, Redis: redisClient, ES: esClient}
 }
 
 func RegisterRoutes(app *fiber.App, baseHandler handlers.BaseHandler) {
 	articleHandler := handlers.ArticleHandler{BaseHandler: baseHandler}
-	commentHandler := handlers.CommentHandler{BaseHandler: baseHandler}
+	commentsHandler := handlers.CommentsHandler{BaseHandler: baseHandler}
+	webSocketHandler := handlers.WebSocketHandler{BaseHandler: baseHandler}
 	allHandlers := &routes.Handlers{
-		ArticleHandler: articleHandler,
-		CommentHandler: commentHandler,
+		ArticleHandler:   articleHandler,
+		CommentsHandler:  commentsHandler,
+		WebSocketHandler: webSocketHandler,
 	}
 	routes.SetupRoutes(app, allHandlers)
 }
@@ -94,6 +105,7 @@ func main() {
 			NewDatabaseConnection,
 			NewRedisClient,
 			NewElasticsearchClient,
+			NewWebSocketHandler,
 			NewBaseHandler,
 			kafka.NewProducer, // 假设这是你初始化Kafka生产者的函数
 			kafka.NewConsumer, // 假设这是你初始化Kafka消费者的函数

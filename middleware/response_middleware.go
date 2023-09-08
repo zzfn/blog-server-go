@@ -9,6 +9,10 @@ import (
 )
 
 func ResponseMiddleware(c *fiber.Ctx) error {
+	// 检查是否为WebSocket的握手请求
+	if c.Get("Upgrade") == "websocket" && c.Get("Connection") == "Upgrade" {
+		return c.Next()
+	}
 	// 先调用下一个中间件或路由处理函数
 	if err := c.Next(); err != nil {
 		var be *common.BusinessException

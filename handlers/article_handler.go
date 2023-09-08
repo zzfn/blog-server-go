@@ -6,10 +6,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"github.com/elastic/go-elasticsearch/v8/esapi"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/log"
+	"gorm.io/gorm"
 	"io"
+	"strconv"
 )
 
 // ArticleHandler 处理与文章相关的请求
@@ -20,16 +23,45 @@ type ArticleHandler struct {
 // GetArticles 获取所有文章
 func (ah *ArticleHandler) GetArticles(c *fiber.Ctx) error {
 	var articles []models.Article
-	result := ah.DB.Select("ID,TITLE,CONTENT,TAG").Find(&articles)
+
+	orderStr := c.Query("order", "created_at desc")
+	limitStr := c.Query("limit")
+
+	query := ah.DB.Select("ID,TITLE,TAG,CREATED_AT").Order(orderStr)
+
+	// 如果提供了 limit 参数，则应用它
+	if limitStr != "" {
+		limit, err := strconv.Atoi(limitStr)
+		if err != nil {
+			return c.Status(fiber.StatusBadRequest).SendString("Invalid limit value")
+		}
+		query = query.Limit(limit)
+	}
+
+	result := query.Find(&articles)
 	if result.Error != nil {
 		log.Error(result.Error)
 		return c.Status(fiber.StatusInternalServerError).SendString(result.Error.Error())
 	}
-	log.Info("查询成功")
+
 	return c.JSON(articles)
 }
 
-func (ah *ArticleHandler) SearchArticles(c *fiber.Ctx) error {
+func (ah *ArticleHandler) GetArticleByID(c *fiber.Ctx) error {
+	id := c.Params("id")
+	var article models.Article
+	result := ah.DB.Select("ID,TITLE,CONTENT,TAG").Take(&article, id)
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return c.Status(404).JSON(fiber.Map{"error": "Article not found"})
+		}
+		log.Errorf("Failed to retrieve article: %v", result.Error) // 使用你的日志库记录错误
+		return c.Status(500).JSON(fiber.Map{"error": "Internal Server Error"})
+	}
+	return c.JSON(article)
+}
+
+func (ah *ArticleHandler) SearchInES(c *fiber.Ctx) error {
 	var keyword = c.Query("keyword")
 	ctx := context.Background()
 	_, err := ah.Redis.ZIncrBy(ctx, "searchKeywords", 1, keyword).Result()
