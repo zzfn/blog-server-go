@@ -23,37 +23,35 @@ func (wsh *WebSocketHandler) HandleConnection(conn *websocket.Conn, userId strin
 	clientsMutex.Lock()
 	clients[conn] = true
 	clientsMutex.Unlock()
+	var ctx = context.Background()
+	wsh.Redis.ZIncrBy(ctx, "online_users", 1, userId)
+	notifyAllClients(ctx, wsh.Redis)
 
 	defer func() {
 		clientsMutex.Lock()
 		delete(clients, conn)
 		clientsMutex.Unlock()
+
+		newScore := wsh.Redis.ZIncrBy(ctx, "online_users", -1, userId).Val()
+		if newScore <= 0 {
+			wsh.Redis.ZRem(ctx, "online_users", userId)
+		}
+		notifyAllClients(ctx, wsh.Redis)
 		err := conn.Close()
 		if err != nil {
-			return
+			// Handle or log the error
 		}
 	}()
-	var ctx = context.Background()
-	// 当用户连接时
-	wsh.Redis.ZIncrBy(ctx, "online_users", 1, userId)
-	notifyAllClients(ctx, wsh.Redis)
 	for {
 		messageType, p, err := conn.ReadMessage()
 		if err != nil {
-			clientsMutex.Lock()
-			// 当用户断开连接时
-			newScore := wsh.Redis.ZIncrBy(ctx, "online_users", -1, userId).Val()
-			if newScore <= 0 {
-				wsh.Redis.ZRem(ctx, "online_users", userId)
-			}
-			clientsMutex.Lock()
-			delete(clients, conn)
-			clientsMutex.Unlock()
-			notifyAllClients(ctx, wsh.Redis)
-			return
+			break // Break out of the loop if there's an error reading the message
 		}
+		// You can handle or broadcast the message here if needed
+		// For now, I'll just echo back the message
 		if err := conn.WriteMessage(messageType, p); err != nil {
-			return
+			// Handle or log the error
+			break
 		}
 	}
 }
