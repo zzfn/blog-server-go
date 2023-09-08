@@ -5,11 +5,21 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
-// SetupArticleRoutes 设置与文章相关的路由
-func SetupArticleRoutes(app *fiber.App, handler handlers.ArticleHandler) {
+type Handlers struct {
+	ArticleHandler handlers.ArticleHandler
+	CommentHandler handlers.CommentHandler
+}
 
-	v1 := app.Group("v1")
-	post := v1.Group("post")
-	post.Get("list", handler.GetArticles)
-	post.Get("search", handler.SearchArticles)
+func SetupRoutes(app *fiber.App, h *Handlers) {
+	// API Versioning
+	v1 := app.Group("/v1")
+
+	// Articles
+	articles := v1.Group("/articles")
+	articles.Get("/", h.ArticleHandler.GetArticles)
+	articles.Get("/search", h.ArticleHandler.SearchArticles)
+
+	// Comments
+	comments := v1.Group("/comments")
+	comments.Get("/", h.CommentHandler.GetAllComments)
 }

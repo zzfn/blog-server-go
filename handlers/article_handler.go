@@ -6,20 +6,15 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"github.com/elastic/go-elasticsearch/v8"
 	"github.com/elastic/go-elasticsearch/v8/esapi"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/log"
-	"github.com/redis/go-redis/v9"
-	"gorm.io/gorm"
 	"io"
 )
 
 // ArticleHandler 处理与文章相关的请求
 type ArticleHandler struct {
-	DB    *gorm.DB
-	Redis *redis.Client
-	ES    *elasticsearch.Client
+	BaseHandler
 }
 
 // GetArticles 获取所有文章

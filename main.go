@@ -49,6 +49,7 @@ func RegisterHooks(lc fx.Lifecycle, app *fiber.App, sqlDB *sql.DB, redisClient *
 func NewFiberApp() *fiber.App {
 	app := fiber.New()
 	app.Use(middleware.ResponseMiddleware)
+	app.Use(middleware.LoggingMiddleware)
 	return app
 }
 
@@ -66,17 +67,20 @@ func NewRedisClient() *redis.Client {
 	return redisClient
 }
 
-func NewArticleHandler(db *gorm.DB, redisClient *redis.Client, esClient *elasticsearch.Client) handlers.ArticleHandler {
-	return handlers.ArticleHandler{
-		DB:    db,
-		Redis: redisClient,
-		ES:    esClient,
-	}
+func NewBaseHandler(db *gorm.DB, redisClient *redis.Client, esClient *elasticsearch.Client) handlers.BaseHandler {
+	return handlers.BaseHandler{DB: db, Redis: redisClient, ES: esClient}
 }
 
-func RegisterRoutes(app *fiber.App, handler handlers.ArticleHandler) {
-	routes.SetupArticleRoutes(app, handler)
+func RegisterRoutes(app *fiber.App, baseHandler handlers.BaseHandler) {
+	articleHandler := handlers.ArticleHandler{BaseHandler: baseHandler}
+	commentHandler := handlers.CommentHandler{BaseHandler: baseHandler}
+	allHandlers := &routes.Handlers{
+		ArticleHandler: articleHandler,
+		CommentHandler: commentHandler,
+	}
+	routes.SetupRoutes(app, allHandlers)
 }
+
 func NewElasticsearchClient() (*elasticsearch.Client, error) {
 	esClient, err := config.SetupElasticsearch()
 	common.HandleError(err, "Error setting up Elasticsearch:")
@@ -90,7 +94,7 @@ func main() {
 			NewDatabaseConnection,
 			NewRedisClient,
 			NewElasticsearchClient,
-			NewArticleHandler,
+			NewBaseHandler,
 			kafka.NewProducer, // 假设这是你初始化Kafka生产者的函数
 			kafka.NewConsumer, // 假设这是你初始化Kafka消费者的函数
 		),

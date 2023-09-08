@@ -4,14 +4,17 @@ import (
 	"context"
 	"fmt"
 	"github.com/elastic/go-elasticsearch/v8"
-	"github.com/gofiber/fiber/v2/log"
+	fiberlog "github.com/gofiber/fiber/v2/log"
 	"github.com/redis/go-redis/v9"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 	"gorm.io/gorm/schema"
 	"io"
+	"log"
 	"os"
 	"strconv"
+	"time"
 )
 
 func SetupDatabase() (*gorm.DB, error) {
@@ -19,9 +22,18 @@ func SetupDatabase() (*gorm.DB, error) {
 	user := os.Getenv("DB_USER")
 	dbname := os.Getenv("DB_NAME")
 	password := os.Getenv("DB_PASSWORD")
+	newLogger := logger.New(
+		log.New(os.Stdout, "\r\n", log.LstdFlags), // io writer
+		logger.Config{
+			SlowThreshold: time.Second, // 慢 SQL 阈值
+			LogLevel:      logger.Info, // Log level
+			Colorful:      true,        // 彩色打印
+		},
+	)
 
 	dsn := fmt.Sprintf("host=%s user=%s dbname=%s sslmode=disable password=%s", host, user, dbname, password)
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
+		Logger: newLogger,
 		NamingStrategy: schema.NamingStrategy{
 			SingularTable: true, // 使用单数形式的表名
 		},
@@ -29,7 +41,7 @@ func SetupDatabase() (*gorm.DB, error) {
 	if err != nil {
 		return nil, err
 	}
-	log.Info("Database connected successfully")
+	fiberlog.Info("Database connected successfully")
 	return db, nil
 }
 
@@ -53,7 +65,7 @@ func SetupRedis() (*redis.Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	log.Info("Redis connected successfully")
+	fiberlog.Info("Redis connected successfully")
 	return client, nil
 }
 
@@ -80,7 +92,7 @@ func SetupElasticsearch() (*elasticsearch.Client, error) {
 	defer func(Body io.ReadCloser) {
 		err := Body.Close()
 		if err != nil {
-			log.Errorf("Error closing response body: %v", err)
+			fiberlog.Errorf("Error closing response body: %v", err)
 		}
 	}(res.Body)
 
@@ -88,6 +100,6 @@ func SetupElasticsearch() (*elasticsearch.Client, error) {
 		return nil, fmt.Errorf("Elasticsearch returned non-200 status code: %d", res.StatusCode)
 	}
 
-	log.Info("Elasticsearch connected successfully")
+	fiberlog.Info("Elasticsearch connected successfully")
 	return esClient, nil
 }
