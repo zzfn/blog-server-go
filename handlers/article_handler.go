@@ -27,7 +27,7 @@ func (ah *ArticleHandler) GetArticles(c *fiber.Ctx) error {
 	orderStr := c.Query("order", "created_at desc")
 	limitStr := c.Query("limit")
 
-	query := ah.DB.Select("ID,TITLE,TAG,CREATED_AT").Order(orderStr)
+	query := ah.DB.Select("ID,TITLE,TAG,CREATED_AT,updated_at").Where("is_deleted", false).Where("is_active", true).Order(orderStr)
 
 	// 如果提供了 limit 参数，则应用它
 	if limitStr != "" {

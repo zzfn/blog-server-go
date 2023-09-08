@@ -2,11 +2,11 @@ package handlers
 
 import (
 	"context"
-	"fmt"
 	"github.com/fasthttp/websocket"
 	"github.com/gofiber/fiber/v2"
 	"github.com/redis/go-redis/v9"
 	"github.com/valyala/fasthttp"
+	"strconv"
 	"sync"
 )
 
@@ -75,14 +75,14 @@ func (wsh *WebSocketHandler) UpgradeToWebSocket(c *fiber.Ctx) error {
 }
 func notifyAllClients(ctx context.Context, rdb *redis.Client) {
 	onlineCount := rdb.ZCard(ctx, "online_users").Val()
-	message := []byte(fmt.Sprintf("Online users: %d", onlineCount))
+	message := strconv.Itoa(int(onlineCount))
 
 	clientsMutex.Lock()
 	defer clientsMutex.Unlock()
 
 	for client := range clients {
-		if err := client.WriteMessage(websocket.TextMessage, message); err != nil {
-			// Handle or log error
+		if err := client.WriteMessage(websocket.TextMessage, []byte(message)); err != nil {
+			// 处理或记录错误
 		}
 	}
 }

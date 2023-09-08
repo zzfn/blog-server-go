@@ -12,6 +12,7 @@ import (
 	"github.com/elastic/go-elasticsearch/v8"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/log"
+	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/redis/go-redis/v9"
 	"go.uber.org/fx"
 	"gorm.io/gorm"
@@ -50,6 +51,7 @@ func NewFiberApp() *fiber.App {
 	app := fiber.New()
 	app.Use(middleware.ResponseMiddleware)
 	app.Use(middleware.LoggingMiddleware)
+	app.Use(cors.New())
 	return app
 }
 

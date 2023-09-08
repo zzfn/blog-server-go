@@ -1,18 +1,18 @@
 package models
 
 type Comment struct {
-	ID        uint `gorm:"primaryKey"`
-	ContentID uint
-	Content   string
-	UserID    uint
-	Replies   []Reply `gorm:"foreignKey:CommentID"`
+	ID        uint    `json:"id" gorm:"primaryKey"`
+	ContentId uint    `json:"content_id"`
+	Content   string  `json:"content"`
+	CreatedBy string  `json:"createdBy"`
+	Replies   []Reply `json:"replies" gorm:"foreignKey:CommentID"`
 }
 
 type Reply struct {
-	ID        uint `gorm:"primaryKey"`
-	CommentID uint
-	Content   string
-	UserID    uint
-	Children  []Reply `gorm:"foreignKey:ParentID"`
-	ParentID  uint
+	ID        uint    `json:"id" gorm:"primaryKey"`
+	CommentID uint    `json:"comment_id"`
+	Content   string  `json:"content"`
+	CreatedBy string  `json:"createdBy"`
+	Children  []Reply `json:"children" gorm:"foreignKey:ParentID"`
+	ParentID  uint    `json:"parent_id"`
 }
