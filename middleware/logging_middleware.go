@@ -16,7 +16,8 @@ func LoggingMiddleware(c *fiber.Ctx) error {
 
 	// 计算耗时
 	duration := time.Since(start)
-
+	ips := c.IPs()
+	log.Println(ips)
 	// 打印请求方法、路径和耗时
 	log.Printf("[%s] %s - %v - IP: %s\n", c.Method(), c.Path(), duration, c.IP())
 
