@@ -7,7 +7,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
-type Person struct {
+type RequestIPHeaders struct {
 	XForwardedFor  string `reqHeader:"x-forwarded-for"`
 	XRealIp        string `reqHeader:"x-real-ip"`
 	CfConnectingIp string `reqHeader:"cf-connecting-ip"`
@@ -22,7 +22,7 @@ func LoggingMiddleware(c *fiber.Ctx) error {
 
 	// 计算耗时
 	duration := time.Since(start)
-	p := new(Person)
+	p := new(RequestIPHeaders)
 
 	if err := c.ReqHeaderParser(p); err != nil {
 		return err

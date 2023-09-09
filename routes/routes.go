@@ -25,5 +25,8 @@ func SetupRoutes(app *fiber.App, h *Handlers) {
 
 	// Comments
 	comments := v1.Group("/comments")
-	comments.Get("/", h.CommentsHandler.GetAllComments)
+	comments.Get("/", h.CommentsHandler.GetComments)
+	comments.Post("/", h.CommentsHandler.CreateComment)
+	replies := v1.Group("/replies")
+	replies.Post("/", h.CommentsHandler.CreateReply)
 }
