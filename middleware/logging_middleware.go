@@ -7,6 +7,12 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
+type Person struct {
+	XForwardedFor  string `reqHeader:"x-forwarded-for"`
+	XRealIp        string `reqHeader:"x-real-ip"`
+	CfConnectingIp string `reqHeader:"cf-connecting-ip"`
+}
+
 func LoggingMiddleware(c *fiber.Ctx) error {
 	// 记录请求的开始时间
 	start := time.Now()
@@ -16,7 +22,12 @@ func LoggingMiddleware(c *fiber.Ctx) error {
 
 	// 计算耗时
 	duration := time.Since(start)
-	log.Println(c.IPs(), c.GetReqHeaders())
+	p := new(Person)
+
+	if err := c.ReqHeaderParser(p); err != nil {
+		return err
+	}
+	log.Println(c.IPs(), p.XForwardedFor, p.XRealIp, p.CfConnectingIp)
 	// 打印请求方法、路径和耗时
 	log.Printf("[%s] %s - %v - IP: %s\n", c.Method(), c.Path(), duration, c.IP())
 
