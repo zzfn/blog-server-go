@@ -14,8 +14,9 @@ type Comment struct {
 	Content    string    `json:"content"`
 	IP         string    `json:"ip"`
 	Address    string    `json:"address"`
-	CreatedBy  string    `json:"createdBy"`
-	UpdatedBy  string    `json:"updatedBy"`
+	UserID     string    `json:"userID"`
+	CreatedBy  int64     `json:"createdBy"`
+	UpdatedBy  int64     `json:"updatedBy"`
 	CreatedAt  time.Time `json:"createdAt"`
 	UpdatedAt  time.Time `json:"updatedAt"`
 	IsDeleted  bool      `json:"isDeleted"`
@@ -28,8 +29,9 @@ type Reply struct {
 	Content   string    `json:"content"`
 	IP        string    `json:"ip"`
 	Address   string    `json:"address"`
-	CreatedBy string    `json:"createdBy"`
-	UpdatedBy string    `json:"updatedBy"`
+	UserID    string    `json:"userID"`
+	CreatedBy int64     `json:"createdBy"`
+	UpdatedBy int64     `json:"updatedBy"`
 	CreatedAt time.Time `json:"createdAt"`
 	UpdatedAt time.Time `json:"updatedAt"`
 	IsDeleted bool      `json:"isDeleted"`
