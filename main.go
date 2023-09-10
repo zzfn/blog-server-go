@@ -22,7 +22,7 @@ func RegisterHooks(lc fx.Lifecycle, app *fiber.App, sqlDB *sql.DB, redisClient *
 	lc.Append(fx.Hook{
 		OnStart: func(ctx context.Context) error {
 			go func() {
-				if err := app.Listen(":3000"); err != nil {
+				if err := app.Listen(":8000"); err != nil {
 					log.Fatalf("Failed to start Fiber app: %v", err)
 				}
 			}()
