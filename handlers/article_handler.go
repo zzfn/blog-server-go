@@ -26,8 +26,14 @@ func (ah *ArticleHandler) GetArticles(c *fiber.Ctx) error {
 
 	orderStr := c.Query("order", "created_at desc")
 	limitStr := c.Query("limit")
+	isRss := c.Query("rss")
+	log.Info("isRss", isRss)
+	fields := "ID,TITLE,TAG,CREATED_AT,updated_at"
+	if isRss == "true" {
+		fields += ",CONTENT"
+	}
 
-	query := ah.DB.Select("ID,TITLE,TAG,CREATED_AT,updated_at").Where("is_deleted", false).Where("is_active", true).Order(orderStr)
+	query := ah.DB.Select(fields).Where("is_deleted", false).Where("is_active", true).Order(orderStr)
 
 	// 如果提供了 limit 参数，则应用它
 	if limitStr != "" {
@@ -62,7 +68,6 @@ func (ah *ArticleHandler) GetArticleByID(c *fiber.Ctx) error {
 }
 func (ah *ArticleHandler) UpdateArticleViews(c *fiber.Ctx) error {
 	id := c.Params("id")
-	log.Info("id:", id)
 	var article models.Article
 
 	// First, check if the article exists

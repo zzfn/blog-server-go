@@ -85,11 +85,13 @@ func NewBaseHandler(db *gorm.DB, redisClient *redis.Client, esClient *elasticsea
 func RegisterRoutes(app *fiber.App, baseHandler handlers.BaseHandler) {
 	articleHandler := handlers.ArticleHandler{BaseHandler: baseHandler}
 	commentsHandler := handlers.CommentsHandler{BaseHandler: baseHandler}
+	appUserHandler := handlers.AppUserHandler{BaseHandler: baseHandler}
 	webSocketHandler := handlers.WebSocketHandler{BaseHandler: baseHandler}
 	allHandlers := &routes.Handlers{
 		ArticleHandler:   articleHandler,
 		CommentsHandler:  commentsHandler,
 		WebSocketHandler: webSocketHandler,
+		AppUserHandler:   appUserHandler,
 	}
 	routes.SetupRoutes(app, allHandlers)
 }

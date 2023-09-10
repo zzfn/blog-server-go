@@ -10,6 +10,7 @@ type Handlers struct {
 	CommentsHandler   handlers.CommentsHandler
 	WebSocketHandler  handlers.WebSocketHandler
 	FriendLinkHandler handlers.FriendLinksHandler
+	AppUserHandler    handlers.AppUserHandler
 }
 
 func SetupRoutes(app *fiber.App, h *Handlers) {
@@ -36,4 +37,10 @@ func SetupRoutes(app *fiber.App, h *Handlers) {
 	friendLinks := v1.Group("/friend-links")
 	friendLinks.Post("/", h.FriendLinkHandler.SaveFriendLink) // Save a friend link
 	friendLinks.Get("/", h.FriendLinkHandler.GetFriendLinks)
+	//App User
+	appUsers := v1.Group("/app-users")                         // 修改为 app-users
+	appUsers.Post("/register", h.AppUserHandler.Register)      // 注册新用户
+	appUsers.Post("/login", h.AppUserHandler.Login)            // 用户登录
+	appUsers.Post("/logout", h.AppUserHandler.Logout)          // 用户注销
+	appUsers.Get("/me", h.AppUserHandler.GetAuthenticatedUser) // 获取当前登录的用户信息
 }
