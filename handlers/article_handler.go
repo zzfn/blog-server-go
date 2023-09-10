@@ -50,7 +50,7 @@ func (ah *ArticleHandler) GetArticles(c *fiber.Ctx) error {
 func (ah *ArticleHandler) GetArticleByID(c *fiber.Ctx) error {
 	id := c.Params("id")
 	var article models.Article
-	result := ah.DB.Select("ID,TITLE,CONTENT,TAG").Take(&article, id)
+	result := ah.DB.Take(&article, id)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			return c.Status(404).JSON(fiber.Map{"error": "Article not found"})
