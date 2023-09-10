@@ -12,8 +12,10 @@ type CommentsHandler struct {
 }
 
 func (ch *CommentsHandler) GetComments(c *fiber.Ctx) error {
+	objectId := c.Query("objectId")
+	objectType := c.Query("objectType")
 	var comments []models.Comment
-	if err := ch.DB.Preload("Replies").Find(&comments).Error; err != nil {
+	if err := ch.DB.Preload("Replies").Where("object_id", objectId).Where("object_type", objectType).Where("is_deleted", false).Find(&comments).Error; err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to fetch comments"})
 	}
 
@@ -30,6 +32,7 @@ func (ch *CommentsHandler) CreateComment(c *fiber.Ctx) error {
 		return c.Status(400).JSON(fiber.Map{"error": "Failed to parse request body"})
 	}
 
+	log.Info(&input)
 	// Save to DB
 	if err := ch.DB.Create(&input).Error; err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to save comment"})
@@ -43,8 +46,9 @@ func (ch *CommentsHandler) CreateReply(c *fiber.Ctx) error {
 	input.IP = ip
 	input.Address, _ = common.GetIpAddressInfo(ch.Redis, ip)
 	// Parse and validate request body
+	log.Info("input", &input)
 	if err := c.BodyParser(&input); err != nil {
-		log.Error(err)
+		log.Error(err.Error())
 		return c.Status(400).JSON(fiber.Map{"error": "Failed to parse request body"})
 	}
 

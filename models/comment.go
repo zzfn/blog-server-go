@@ -2,6 +2,8 @@ package models
 
 import (
 	"blog-server-go/common"
+	"github.com/gofiber/fiber/v2/log"
+	"gorm.io/gorm"
 	"time"
 )
 
@@ -33,11 +35,12 @@ type Reply struct {
 	IsDeleted bool      `json:"isDeleted"`
 }
 
-func (model *Comment) BeforeCreate() (err error) {
+func (model *Comment) BeforeCreate(tx *gorm.DB) (err error) {
 	model.ID, err = common.GenerateID()
+	log.Info("ID", model.ID)
 	return
 }
-func (model *Reply) BeforeCreate() (err error) {
+func (model *Reply) BeforeCreate(tx *gorm.DB) (err error) {
 	model.ID, err = common.GenerateID()
 	return
 }
