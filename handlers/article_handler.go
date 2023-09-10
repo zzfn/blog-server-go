@@ -60,7 +60,31 @@ func (ah *ArticleHandler) GetArticleByID(c *fiber.Ctx) error {
 	}
 	return c.JSON(article)
 }
+func (ah *ArticleHandler) UpdateArticleViews(c *fiber.Ctx) error {
+	id := c.Params("id")
+	log.Info("id:", id)
+	var article models.Article
 
+	// First, check if the article exists
+	result := ah.DB.Select("id, view_count").Take(&article, id)
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return c.Status(404).JSON(fiber.Map{"error": "Article not found"})
+		}
+		log.Errorf("Failed to retrieve article: %v", result.Error) // 使用你的日志库记录错误
+		return c.Status(500).JSON(fiber.Map{"error": "Internal Server Error"})
+	}
+
+	// Increase the view count
+	article.ViewCount++
+	result = ah.DB.Model(&article).Omit("updatedAt").Update("view_count", article.ViewCount)
+	if result.Error != nil {
+		log.Errorf("Failed to update article views: %v", result.Error) // 使用你的日志库记录错误
+		return c.Status(500).JSON(fiber.Map{"error": "Internal Server Error"})
+	}
+
+	return c.JSON(fiber.Map{"success": "Views updated", "new_count": article.ViewCount})
+}
 func (ah *ArticleHandler) SearchInES(c *fiber.Ctx) error {
 	var keyword = c.Query("keyword")
 	ctx := context.Background()

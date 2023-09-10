@@ -6,9 +6,10 @@ import (
 )
 
 type Handlers struct {
-	ArticleHandler   handlers.ArticleHandler
-	CommentsHandler  handlers.CommentsHandler
-	WebSocketHandler handlers.WebSocketHandler
+	ArticleHandler    handlers.ArticleHandler
+	CommentsHandler   handlers.CommentsHandler
+	WebSocketHandler  handlers.WebSocketHandler
+	FriendLinkHandler handlers.FriendLinkHandler
 }
 
 func SetupRoutes(app *fiber.App, h *Handlers) {
@@ -22,6 +23,7 @@ func SetupRoutes(app *fiber.App, h *Handlers) {
 	articles.Get("/", h.ArticleHandler.GetArticles)
 	articles.Get("/search/es", h.ArticleHandler.SearchInES)
 	articles.Get("/:id", h.ArticleHandler.GetArticleByID)
+	articles.Put("/:id/views", h.ArticleHandler.UpdateArticleViews)
 
 	// Comments
 	comments := v1.Group("/comments")
@@ -29,4 +31,8 @@ func SetupRoutes(app *fiber.App, h *Handlers) {
 	comments.Post("/", h.CommentsHandler.CreateComment)
 	replies := v1.Group("/replies")
 	replies.Post("/", h.CommentsHandler.CreateReply)
+	// Friend Links
+	friendLinks := v1.Group("/friend-links")
+	friendLinks.Post("/", h.FriendLinkHandler.SaveFriendLink) // Save a friend link
+	friendLinks.Get("/", h.FriendLinkHandler.GetFriendLinks)
 }
