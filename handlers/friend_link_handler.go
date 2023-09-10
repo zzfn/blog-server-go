@@ -13,7 +13,7 @@ type FriendLinksHandler struct {
 // GetFriendLinks retrieves all friend links from the database
 func (flh *FriendLinksHandler) GetFriendLinks(c *fiber.Ctx) error {
 	var friendLinks []models.FriendLink
-	if err := flh.DB.Find(&friendLinks).Error; err != nil {
+	if err := flh.DB.Where("is_deleted", false).Where("is_active", true).Order("created_at").Find(&friendLinks).Error; err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to fetch friend links"})
 	}
 
