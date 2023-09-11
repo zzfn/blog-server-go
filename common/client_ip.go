@@ -87,7 +87,8 @@ func GetIpAddressInfo(client *redis.Client, ip string) (string, error) {
 		}
 		return address, nil
 	} else {
-		url2 := fmt.Sprintf("https://ipinfo.io/%s/json", ip)
+		apiKey := os.Getenv("IP_INFO_KEY")
+		url2 := fmt.Sprintf("https://ipinfo.io/%s/json?token=%s", ip, apiKey)
 		resp, err = http.Get(url2)
 		if err != nil {
 			return "", err
