@@ -79,10 +79,36 @@ func GetIpAddressInfo(client *redis.Client, ip string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	address := fmt.Sprintf("%s, %s", info.City, info.Province)
-	err = client.HSet(ctx, "address", ip, address).Err()
-	if err != nil {
-		return "未知地址", fmt.Errorf("error storing to Redis: %w", err)
+	if info.City != "" && info.Province != "" {
+		address := fmt.Sprintf("%s, %s", info.City, info.Province)
+		err = client.HSet(ctx, "address", ip, address).Err()
+		if err != nil {
+			return "未知地址", fmt.Errorf("error storing to Redis: %w", err)
+		}
+		return address, nil
+	} else {
+		url2 := fmt.Sprintf("https://ipinfo.io/%s/json", ip)
+		resp, err = http.Get(url2)
+		if err != nil {
+			return "", err
+		}
+		defer resp.Body.Close()
+		bodyBytes, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return "", err
+		}
+
+		var infoIpinfo struct {
+			City    string `json:"city"`
+			Region  string `json:"region"`
+			Country string `json:"country"`
+		}
+		err = json.Unmarshal(bodyBytes, &infoIpinfo)
+		if err != nil {
+			return "", err
+		}
+		address := fmt.Sprintf("%s, %s, %s", infoIpinfo.City, infoIpinfo.Region, infoIpinfo.Country)
+		err = client.HSet(ctx, "address", ip, address).Err()
+		return address, nil
 	}
-	return address, nil
 }
