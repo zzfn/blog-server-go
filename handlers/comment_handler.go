@@ -56,8 +56,6 @@ func (ch *CommentsHandler) CreateReply(c *fiber.Ctx) error {
 	ip := common.GetConnectingIp(c)
 	input.IP = ip
 	input.Address, _ = common.GetIpAddressInfo(ch.Redis, ip)
-	// Parse and validate request body
-	log.Info("input", &input)
 	if err := c.BodyParser(&input); err != nil {
 		log.Error(err.Error())
 		return c.Status(400).JSON(fiber.Map{"error": "Failed to parse request body"})
