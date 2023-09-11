@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/log"
 	"github.com/redis/go-redis/v9"
 	"io"
 	"net/http"
@@ -55,6 +56,7 @@ func GetIpAddressInfo(client *redis.Client, ip string) (string, error) {
 	}
 	AmapApiKey := os.Getenv("AMAP_API_KEY")
 	url := fmt.Sprintf("https://restapi.amap.com/v3/ip?key=%s&ip=%s", AmapApiKey, ip)
+	log.Info("url1:", url)
 	resp, err := http.Get(url)
 	if err != nil {
 		return "", err
@@ -89,6 +91,7 @@ func GetIpAddressInfo(client *redis.Client, ip string) (string, error) {
 	} else {
 		apiKey := os.Getenv("IP_INFO_KEY")
 		url2 := fmt.Sprintf("https://ipinfo.io/%s/json?token=%s", ip, apiKey)
+		log.Info("url2:", url2)
 		resp, err = http.Get(url2)
 		if err != nil {
 			return "", err
