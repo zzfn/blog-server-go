@@ -26,7 +26,7 @@ func (ch *CommentsHandler) GetComments(c *fiber.Ctx) error {
 		query = query.Where("object_type", objectType)
 	}
 
-	if err := query.Find(&comments).Error; err != nil {
+	if err := query.Order("created_at desc").Find(&comments).Error; err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to fetch comments"})
 	}
 
