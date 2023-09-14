@@ -4,9 +4,11 @@ import (
 	"blog-server-go/common"
 	"blog-server-go/models"
 	"context"
+	"errors"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/log"
 	"golang.org/x/crypto/bcrypt"
+	"gorm.io/gorm"
 )
 
 type AppUserHandler struct {
@@ -76,8 +78,20 @@ func (auh *AppUserHandler) Logout(c *fiber.Ctx) error {
 
 // GetAuthenticatedUser 获取当前登录的用户信息
 func (auh *AppUserHandler) GetAuthenticatedUser(c *fiber.Ctx) error {
-	user := models.AppUser{
-		// Fill with mock or actual data
+	authHeader := c.Get("Authorization")
+	log.Info("Getting authenticated user:", authHeader)
+	if authHeader == "" {
+		return c.Status(401).JSON(fiber.Map{"error": "Unauthorized"})
+	}
+	userId := auh.Redis.HGet(context.Background(), "token_to_username", authHeader).Val()
+	var user models.AppUser
+	result := auh.DB.Take(&user, userId)
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return c.Status(404).JSON(fiber.Map{"error": "Article not found"})
+		}
+		log.Errorf("Failed to retrieve article: %v", result.Error) // 使用你的日志库记录错误
+		return c.Status(500).JSON(fiber.Map{"error": "Internal Server Error"})
 	}
 	return c.JSON(user)
 }

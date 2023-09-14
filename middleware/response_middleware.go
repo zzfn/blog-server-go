@@ -22,7 +22,7 @@ func ResponseMiddleware(c *fiber.Ctx) error {
 			return c.JSON(newResp)
 		} else {
 			log.Error(err)
-			newResp := common.NewResponse(500, "Internal Server Error", nil)
+			newResp := common.NewResponse(5000, "Internal Server Error", nil)
 			return c.JSON(newResp)
 		}
 	}
@@ -30,7 +30,7 @@ func ResponseMiddleware(c *fiber.Ctx) error {
 	// 获取原始响应
 	rawBody := c.Response().Body()
 	// 创建新的响应体
-	newResp := common.NewResponse(200, "Success", json.RawMessage(rawBody))
+	newResp := common.NewResponse(2000, "Success", json.RawMessage(rawBody))
 
 	// 使用新的响应体覆盖原始响应
 	return c.JSON(newResp)
