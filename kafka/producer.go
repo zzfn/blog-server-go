@@ -12,12 +12,14 @@ type Producer struct {
 	writer *kafka.Writer
 }
 
+const (
+	ArticleUpdateTopic = "ARTICLE_UPDATE_TOPIC"
+)
+
 func NewProducer() *Producer {
 	brokerAddress := os.Getenv("KAFKA_BROKER_ADDRESS")
-	topic := os.Getenv("KAFKA_TOPIC")
 	w := &kafka.Writer{
 		Addr:     kafka.TCP(brokerAddress),
-		Topic:    topic,
 		Balancer: &kafka.LeastBytes{},
 	}
 	return &Producer{writer: w}
@@ -31,9 +33,11 @@ func (p *Producer) Close() {
 	p.writer.Close()
 }
 
-func (p *Producer) ProduceMessage(message string) {
+func (p *Producer) ProduceMessage(topic, key, message string) {
+	p.writer.Topic = topic
 	err := p.writer.WriteMessages(context.Background(),
 		kafka.Message{
+			Key:   []byte(key),
 			Value: []byte(message),
 		},
 	)

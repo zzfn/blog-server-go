@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"blog-server-go/common"
+	"blog-server-go/kafka"
 	"blog-server-go/models"
 	"bytes"
 	"context"
@@ -124,6 +125,7 @@ func (ah *ArticleHandler) UpdateArticle(c *fiber.Ctx) error {
 
 	// 更新文章内容
 	result = ah.DB.Model(&existingArticle).Updates(inputArticle)
+	ah.KafkaProducer.ProduceMessage(kafka.ArticleUpdateTopic, "id", id)
 	if result.Error != nil {
 		log.Errorf("Failed to update article: %v", result.Error) // 使用你的日志库记录错误
 		return c.Status(500).JSON(fiber.Map{"error": "Internal Server Error"})

@@ -78,8 +78,8 @@ func NewWebSocketHandler(db *gorm.DB, redis *redis.Client, es *elasticsearch.Cli
 		},
 	}
 }
-func NewBaseHandler(db *gorm.DB, redisClient *redis.Client, esClient *elasticsearch.Client) handlers.BaseHandler {
-	return handlers.BaseHandler{DB: db, Redis: redisClient, ES: esClient}
+func NewBaseHandler(db *gorm.DB, redisClient *redis.Client, esClient *elasticsearch.Client, kafkaProducer *kafka.Producer) handlers.BaseHandler {
+	return handlers.BaseHandler{DB: db, Redis: redisClient, ES: esClient, KafkaProducer: kafkaProducer}
 }
 
 func RegisterRoutes(app *fiber.App, baseHandler handlers.BaseHandler) {
@@ -113,8 +113,8 @@ func main() {
 			NewElasticsearchClient,
 			NewWebSocketHandler,
 			NewBaseHandler,
-			kafka.NewProducer, // 假设这是你初始化Kafka生产者的函数
-			kafka.NewConsumer, // 假设这是你初始化Kafka消费者的函数
+			kafka.NewArticleUpdateConsumer,
+			kafka.NewProducer,
 		),
 		// Invokes
 		fx.Invoke(RegisterHooks),

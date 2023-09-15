@@ -1,9 +1,11 @@
+FROM alpine:latest as certs
+RUN apk --update add ca-certificates
+
 FROM scratch
 
-WORKDIR /app
+COPY --from=certs /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 
-# 从构建器镜像中复制二进制文件和其他必要的文件。
+WORKDIR /app
 COPY bin/my_app ./my_app
 
-# 运行应用。
 CMD ["/app/my_app"]
