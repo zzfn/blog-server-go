@@ -124,7 +124,14 @@ func (ah *ArticleHandler) UpdateArticle(c *fiber.Ctx) error {
 	}
 
 	// 更新文章内容
-	result = ah.DB.Model(&existingArticle).Updates(inputArticle)
+	result = ah.DB.Model(&existingArticle).Updates(map[string]interface{}{
+		"title":     inputArticle.Title,
+		"content":   inputArticle.Content,
+		"viewCount": inputArticle.ViewCount,
+		"tag":       inputArticle.Tag,
+		"sortOrder": inputArticle.SortOrder,
+		"isActive":  inputArticle.IsActive,
+	})
 	ah.KafkaProducer.ProduceMessage(kafka.ArticleUpdateTopic, "id", id)
 	if result.Error != nil {
 		log.Errorf("Failed to update article: %v", result.Error) // 使用你的日志库记录错误
