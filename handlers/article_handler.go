@@ -79,6 +79,59 @@ func (ah *ArticleHandler) UpdateArticleViews(c *fiber.Ctx) error {
 
 	return c.JSON(result.RowsAffected)
 }
+
+// CreateArticle 创建文章
+func (ah *ArticleHandler) CreateArticle(c *fiber.Ctx) error {
+	var article models.Article
+	if err := c.BodyParser(&article); err != nil {
+		log.Error(err)
+		return &common.BusinessException{
+			Code:    5000,
+			Message: "无法解析JSON",
+		}
+	}
+
+	result := ah.DB.Create(&article)
+	if result.Error != nil {
+		log.Errorf("Failed to save article: %v", result.Error) // 使用你的日志库记录错误
+		return c.Status(500).JSON(fiber.Map{"error": "Internal Server Error"})
+	}
+
+	return c.Status(fiber.StatusCreated).JSON(article)
+}
+
+// UpdateArticle 更新文章
+func (ah *ArticleHandler) UpdateArticle(c *fiber.Ctx) error {
+	var inputArticle models.Article
+
+	id := c.Params("id")
+
+	if err := c.BodyParser(&inputArticle); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{
+			"error": "无法解析JSON",
+		})
+	}
+
+	var existingArticle models.Article
+	result := ah.DB.Take(&existingArticle, "id = ?", id)
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return c.Status(404).JSON(fiber.Map{"error": "Article not found"})
+		}
+		log.Errorf("Failed to retrieve article: %v", result.Error) // 使用你的日志库记录错误
+		return c.Status(500).JSON(fiber.Map{"error": "Internal Server Error"})
+	}
+
+	// 更新文章内容
+	result = ah.DB.Model(&existingArticle).Updates(inputArticle)
+	if result.Error != nil {
+		log.Errorf("Failed to update article: %v", result.Error) // 使用你的日志库记录错误
+		return c.Status(500).JSON(fiber.Map{"error": "Internal Server Error"})
+	}
+
+	return c.JSON(existingArticle)
+}
+
 func (ah *ArticleHandler) SearchInES(c *fiber.Ctx) error {
 	var keyword = c.Query("keyword")
 	ctx := context.Background()
