@@ -57,7 +57,7 @@ func (auh *AppUserHandler) Login(c *fiber.Ctx) error {
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(input.Password)); err != nil {
 		return c.Status(401).JSON(fiber.Map{"error": "Invalid password"})
 	}
-	token, _ := common.GenerateToken(string(user.ID), user.IsAdmin)
+	token, _ := common.GenerateToken(string(user.ID), user.IsAdmin, user.Username)
 	var ctx = context.Background()
 	log.Info("Getting old token:", user.ID)
 	oldToken, err := auh.Redis.HGet(ctx, "username_to_token", string(user.ID)).Result()
@@ -78,13 +78,12 @@ func (auh *AppUserHandler) Logout(c *fiber.Ctx) error {
 
 // GetAuthenticatedUser 获取当前登录的用户信息
 func (auh *AppUserHandler) GetAuthenticatedUser(c *fiber.Ctx) error {
-	authHeader := c.Get("Authorization")
-	payload, err := common.ParseToken(common.ExtractToken(authHeader))
-	if err != nil {
+	log.Info(c.Locals("userId"))
+	if c.Locals("userId") == nil {
 		return c.Status(401).JSON(fiber.Map{"error": "Unauthorized"})
 	}
 	var user models.AppUser
-	result := auh.DB.Take(&user, payload.ID)
+	result := auh.DB.Take(&user, c.Locals("userId"))
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			return c.Status(404).JSON(fiber.Map{"error": "Article not found"})

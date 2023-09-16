@@ -51,6 +51,7 @@ func NewFiberApp() *fiber.App {
 	app := fiber.New()
 	app.Use(cors.New())
 	app.Use(middleware.LoggingMiddleware)
+	app.Use(middleware.AuthMiddleware)
 	app.Use(middleware.ResponseMiddleware)
 	return app
 }

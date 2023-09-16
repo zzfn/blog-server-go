@@ -14,16 +14,18 @@ import (
 )
 
 type Payload struct {
-	ID      string `json:"id"`
-	IsAdmin bool   `json:"isAdmin"`
+	UserID   string `json:"userID"`
+	IsAdmin  bool   `json:"isAdmin"`
+	Username string `json:"username"`
 }
 
-func GenerateToken(id string, isAdmin bool) (string, error) {
+func GenerateToken(id string, isAdmin bool, username string) (string, error) {
 	secretKey := os.Getenv("SECRET_KEY")
 
 	payload := Payload{
-		ID:      id,
-		IsAdmin: isAdmin,
+		UserID:   id,
+		IsAdmin:  isAdmin,
+		Username: username,
 	}
 	data, err := json.Marshal(payload)
 	if err != nil {
