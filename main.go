@@ -50,8 +50,8 @@ func RegisterHooks(lc fx.Lifecycle, app *fiber.App, sqlDB *sql.DB, redisClient *
 func NewFiberApp() *fiber.App {
 	app := fiber.New()
 	app.Use(cors.New())
-	app.Use(middleware.ResponseMiddleware)
 	app.Use(middleware.LoggingMiddleware)
+	app.Use(middleware.ResponseMiddleware)
 	return app
 }
 

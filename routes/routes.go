@@ -2,6 +2,7 @@ package routes
 
 import (
 	"blog-server-go/handlers"
+	"blog-server-go/middleware"
 	"github.com/gofiber/fiber/v2"
 )
 
@@ -22,8 +23,8 @@ func SetupRoutes(app *fiber.App, h *Handlers) {
 	// Articles
 	articles := v1.Group("/articles")
 	articles.Get("/", h.ArticleHandler.GetArticles)
-	articles.Post("/", h.ArticleHandler.CreateArticle)   // 新建文章
-	articles.Put("/:id", h.ArticleHandler.UpdateArticle) // 更新文章
+	articles.Post("/", middleware.AuthMiddleware(), h.ArticleHandler.CreateArticle)   // 新建文章
+	articles.Put("/:id", middleware.AuthMiddleware(), h.ArticleHandler.UpdateArticle) // 更新文章
 	articles.Get("/search/es", h.ArticleHandler.SearchInES)
 	articles.Get("/:id", h.ArticleHandler.GetArticleByID)
 	articles.Put("/:id/views", h.ArticleHandler.UpdateArticleViews)

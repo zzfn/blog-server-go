@@ -57,17 +57,17 @@ func (auh *AppUserHandler) Login(c *fiber.Ctx) error {
 	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(input.Password)); err != nil {
 		return c.Status(401).JSON(fiber.Map{"error": "Invalid password"})
 	}
-
-	newToken, _ := common.GenerateID()
+	token, _ := common.GenerateToken(string(user.ID), user.IsAdmin)
 	var ctx = context.Background()
+	log.Info("Getting old token:", user.ID)
 	oldToken, err := auh.Redis.HGet(ctx, "username_to_token", string(user.ID)).Result()
 	if err == nil && oldToken != "" {
 		// 从 "Token → 用户名" 哈希表中删除这个 Token
 		auh.Redis.HDel(ctx, "token_to_username", oldToken)
 	}
-	auh.Redis.HSet(ctx, "username_to_token", string(user.ID), newToken)
-	auh.Redis.HSet(ctx, "token_to_username", newToken, string(user.ID))
-	return c.JSON(newToken)
+	auh.Redis.HSet(ctx, "username_to_token", string(user.ID), token)
+	auh.Redis.HSet(ctx, "token_to_username", token, string(user.ID))
+	return c.JSON(token)
 }
 
 // Logout 用户注销
