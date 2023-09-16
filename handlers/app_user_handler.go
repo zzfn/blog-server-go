@@ -78,14 +78,13 @@ func (auh *AppUserHandler) Logout(c *fiber.Ctx) error {
 
 // GetAuthenticatedUser 获取当前登录的用户信息
 func (auh *AppUserHandler) GetAuthenticatedUser(c *fiber.Ctx) error {
-	authHeader := c.Get("uid")
-	log.Info("Getting authenticated user:", authHeader)
-	if authHeader == "" {
+	authHeader := c.Get("Authorization")
+	payload, err := common.ParseToken(common.ExtractToken(authHeader))
+	if err != nil {
 		return c.Status(401).JSON(fiber.Map{"error": "Unauthorized"})
 	}
-	userId := auh.Redis.HGet(context.Background(), "token_to_username", authHeader).Val()
 	var user models.AppUser
-	result := auh.DB.Take(&user, userId)
+	result := auh.DB.Take(&user, payload.ID)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			return c.Status(404).JSON(fiber.Map{"error": "Article not found"})

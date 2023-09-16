@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -84,4 +85,11 @@ func ParseToken(token string) (Payload, error) {
 	}
 
 	return payload, nil
+}
+func ExtractToken(bearerString string) string {
+	prefix := "Bearer "
+	if strings.HasPrefix(bearerString, prefix) {
+		return bearerString[len(prefix):]
+	}
+	return ""
 }
