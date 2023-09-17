@@ -78,8 +78,7 @@ func (auh *AppUserHandler) Logout(c *fiber.Ctx) error {
 
 // GetAuthenticatedUser 获取当前登录的用户信息
 func (auh *AppUserHandler) GetAuthenticatedUser(c *fiber.Ctx) error {
-	log.Info(c.Locals("userId"))
-	if c.Locals("userId") == nil {
+	if c.Locals("userId") == nil || c.Locals("userId") == "" {
 		return c.Status(401).JSON(fiber.Map{"error": "Unauthorized"})
 	}
 	var user models.AppUser
