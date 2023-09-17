@@ -127,10 +127,8 @@ func (ah *ArticleHandler) UpdateArticle(c *fiber.Ctx) error {
 	result = ah.DB.Model(&existingArticle).Updates(map[string]interface{}{
 		"title":     inputArticle.Title,
 		"content":   inputArticle.Content,
-		"viewCount": inputArticle.ViewCount,
 		"tag":       inputArticle.Tag,
-		"sortOrder": inputArticle.SortOrder,
-		"isActive":  inputArticle.IsActive,
+		"is_active": inputArticle.IsActive,
 	})
 	ah.KafkaProducer.ProduceMessage(kafka.ArticleUpdateTopic, "id", id)
 	if result.Error != nil {
