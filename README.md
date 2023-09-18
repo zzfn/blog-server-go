@@ -5,6 +5,9 @@
 //更新所有依赖
 ```bash
 go get -u ./...
+#删除go.mod和go.sum中所有未使用的依赖
+go mod tidy
+
 ```
 
 ```

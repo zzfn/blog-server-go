@@ -7,44 +7,37 @@ import (
 	"blog-server-go/kafka"
 	"blog-server-go/middleware"
 	"blog-server-go/routes"
-	"context"
+	"blog-server-go/tasks"
 	"database/sql"
 	"github.com/elastic/go-elasticsearch/v8"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/log"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/redis/go-redis/v9"
-	"go.uber.org/fx"
 	"gorm.io/gorm"
+	"os"
+	"os/signal"
+	"syscall"
 )
 
-func RegisterHooks(lc fx.Lifecycle, app *fiber.App, sqlDB *sql.DB, redisClient *redis.Client, kafkaConsumer *kafka.Consumer) {
-	lc.Append(fx.Hook{
-		OnStart: func(ctx context.Context) error {
-			go func() {
-				if err := app.Listen(":8000"); err != nil {
-					log.Fatalf("Failed to start Fiber app: %v", err)
-				}
-			}()
-			// Kafka消费者启动逻辑
-			go kafkaConsumer.Start()
-			return nil
-		},
-		OnStop: func(ctx context.Context) error {
-			// 关闭数据库连接
-			if err := sqlDB.Close(); err != nil {
-				log.Errorf("Error closing database: %v", err)
-			}
+func StartServices(app *fiber.App, kafkaConsumer *kafka.Consumer) {
+	if err := app.Listen(":8000"); err != nil {
+		log.Fatalf("Failed to start Fiber app: %v", err)
+	}
+	go kafkaConsumer.Start()
+}
 
-			// 关闭Redis客户端
-			if err := redisClient.Close(); err != nil {
-				log.Errorf("Error closing Redis client: %v", err)
-			}
+func ShutdownServices(app *fiber.App, sqlDB *sql.DB, redisClient *redis.Client, kafkaConsumer *kafka.Consumer) {
+	if err := sqlDB.Close(); err != nil {
+		log.Errorf("Error closing database: %v", err)
+	}
 
-			kafkaConsumer.Close()
-			return app.Shutdown()
-		},
-	})
+	if err := redisClient.Close(); err != nil {
+		log.Errorf("Error closing Redis client: %v", err)
+	}
+
+	kafkaConsumer.Close()
+	_ = app.Shutdown()
 }
 
 func NewFiberApp() *fiber.App {
@@ -79,8 +72,10 @@ func NewWebSocketHandler(db *gorm.DB, redis *redis.Client, es *elasticsearch.Cli
 		},
 	}
 }
-func NewBaseHandler(db *gorm.DB, redisClient *redis.Client, esClient *elasticsearch.Client, kafkaProducer *kafka.Producer) handlers.BaseHandler {
-	return handlers.BaseHandler{DB: db, Redis: redisClient, ES: esClient, KafkaProducer: kafkaProducer}
+
+// 注入BaseHandler
+func NewBaseHandler(db *gorm.DB, redisClient *redis.Client, esClient *elasticsearch.Client, kafkaProducer *kafka.Producer, wsHandler *handlers.WebSocketHandler) handlers.BaseHandler {
+	return handlers.BaseHandler{DB: db, Redis: redisClient, ES: esClient, KafkaProducer: kafkaProducer, WSHandler: wsHandler}
 }
 
 func RegisterRoutes(app *fiber.App, baseHandler handlers.BaseHandler) {
@@ -105,22 +100,47 @@ func NewElasticsearchClient() (*elasticsearch.Client, error) {
 	return esClient, err
 }
 func main() {
-	app := fx.New(
-		// Provides
-		fx.Provide(
-			NewFiberApp,
-			NewDatabaseConnection,
-			NewRedisClient,
-			NewElasticsearchClient,
-			NewWebSocketHandler,
-			NewBaseHandler,
-			kafka.NewArticleUpdateConsumer,
-			kafka.NewProducer,
-		),
-		// Invokes
-		fx.Invoke(RegisterHooks),
-		fx.Invoke(RegisterRoutes),
-	)
+	// 初始化Fiber app
+	app := NewFiberApp()
 
-	app.Run()
+	// 初始化数据库连接
+
+	db, sqlDB := NewDatabaseConnection()
+	defer sqlDB.Close()
+
+	// 初始化Redis客户端
+	redisClient := NewRedisClient()
+	defer redisClient.Close()
+
+	// 初始化Elasticsearch客户端
+	esClient, err := NewElasticsearchClient()
+	if err != nil {
+		log.Fatalf("Error initializing Elasticsearch client: %v", err)
+	}
+
+	// 初始化WebSocketHandler
+	wsHandler := NewWebSocketHandler(db, redisClient, esClient)
+
+	// 初始化BaseHandler
+	kafkaProducer := kafka.NewProducer()
+	baseHandler := NewBaseHandler(db, redisClient, esClient, kafkaProducer, wsHandler)
+
+	// 初始化Kafka消费者
+	kafkaConsumer := kafka.NewArticleUpdateConsumer()
+
+	// 注册路由
+	RegisterRoutes(app, baseHandler)
+	// 开始定时任务
+	go tasks.StartCronJobs()
+	// 启动服务
+	StartServices(app, kafkaConsumer)
+
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+
+	go func() {
+		<-c
+		ShutdownServices(app, sqlDB, redisClient, kafkaConsumer)
+		os.Exit(0)
+	}()
 }

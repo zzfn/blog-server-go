@@ -12,4 +12,5 @@ type BaseHandler struct {
 	Redis         *redis.Client
 	ES            *elasticsearch.Client
 	KafkaProducer *kafka.Producer
+	WSHandler     *WebSocketHandler
 }
