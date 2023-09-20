@@ -7,7 +7,6 @@ import (
 	"blog-server-go/kafka"
 	"blog-server-go/middleware"
 	"blog-server-go/routes"
-	"blog-server-go/tasks"
 	"database/sql"
 	"github.com/elastic/go-elasticsearch/v8"
 	"github.com/gofiber/fiber/v2"
@@ -21,10 +20,10 @@ import (
 )
 
 func StartServices(app *fiber.App, kafkaConsumer *kafka.Consumer) {
+	kafkaConsumer.Start()
 	if err := app.Listen(":8000"); err != nil {
 		log.Fatalf("Failed to start Fiber app: %v", err)
 	}
-	go kafkaConsumer.Start()
 }
 
 func ShutdownServices(app *fiber.App, sqlDB *sql.DB, redisClient *redis.Client, kafkaConsumer *kafka.Consumer) {
@@ -131,7 +130,7 @@ func main() {
 	// 注册路由
 	RegisterRoutes(app, baseHandler)
 	// 开始定时任务
-	go tasks.StartCronJobs()
+	//go tasks.StartCronJobs()
 	// 启动服务
 	StartServices(app, kafkaConsumer)
 

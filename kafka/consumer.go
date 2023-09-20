@@ -33,12 +33,13 @@ func NewConsumer(topic string) *Consumer {
 func (c *Consumer) Start() {
 	go func() {
 		for {
+			fmt.Println("Waiting for message")
 			msg, err := c.reader.ReadMessage(context.Background())
 			if err != nil {
 				log.Fatalf("Failed to read message: %v", err)
 			}
 			c.handler(msg)
-			fmt.Printf("message at offset %d: %s = %s\n", msg.Offset, string(msg.Key), string(msg.Value))
+			log.Printf("message at offset %d: %s = %s\n\n", msg.Offset, string(msg.Key), string(msg.Value))
 		}
 	}()
 }
