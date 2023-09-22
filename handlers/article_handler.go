@@ -237,3 +237,65 @@ func (ah *ArticleHandler) SearchInES(c *fiber.Ctx) error {
 
 	return c.JSON(articles)
 }
+func (ah *ArticleHandler) SyncSQLToES(c *fiber.Ctx) error {
+	// 删除已存在的索引
+	res, err := ah.ES.Indices.Delete([]string{"blog"})
+	if err != nil {
+		log.Fatalf("Failed deleting index: %v", err)
+	}
+	defer res.Body.Close()
+	// 创建新索引
+	res, err = ah.ES.Indices.Create("blog")
+	if err != nil {
+		log.Fatalf("Failed creating index: %v", err)
+	}
+	defer res.Body.Close()
+
+	// 设置映射
+	propertiesMapping := map[string]interface{}{
+		"title": map[string]interface{}{
+			"type":            "text",
+			"analyzer":        "smartcn",
+			"search_analyzer": "smartcn",
+		},
+		// ... 添加其他字段映射
+	}
+	mapping := map[string]interface{}{"properties": propertiesMapping}
+	b, _ := json.Marshal(mapping)
+	res, err = ah.ES.Indices.PutMapping([]string{"blog"}, bytes.NewReader(b))
+	if err != nil {
+		log.Fatalf("Failed setting mappings: %v", err)
+	}
+	defer res.Body.Close()
+
+	query := ah.DB.Where("is_deleted", false).Where("is_active", true)
+	var articles []models.Article
+
+	_ = query.Find(&articles)
+
+	// 执行批量索引操作
+	var buf bytes.Buffer
+	for _, article := range articles {
+		meta := map[string]interface{}{
+			"index": map[string]interface{}{
+				"_id":    article.ID,
+				"_index": "blog",
+			},
+		}
+		data, _ := json.Marshal(meta)
+		buf.Write(data)
+		buf.WriteByte('\n')
+
+		body, _ := json.Marshal(article)
+		buf.Write(body)
+		buf.WriteByte('\n')
+	}
+
+	res, err = ah.ES.Bulk(&buf)
+	if err != nil {
+		log.Fatalf("Failed bulk indexing: %v", err)
+	}
+	defer res.Body.Close()
+
+	return c.JSON(nil)
+}
