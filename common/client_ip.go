@@ -101,12 +101,12 @@ func GetIpAddressInfo(client *redis.Client, ip string) (string, error) {
 		return address, nil
 	}
 
-	//AmapApiKey := os.Getenv("AMAP_API_KEY")
-	//address, err = fetchFromAmap(ip, AmapApiKey)
-	//if err == nil {
-	//	client.HSet(ctx, "address", ip, address)
-	//	return address, nil
-	//}
+	AmapApiKey := os.Getenv("AMAP_API_KEY")
+	address, err = fetchFromAmap(ip, AmapApiKey)
+	if err == nil {
+		client.HSet(ctx, "address", ip, address)
+		return address, nil
+	}
 
 	IpinfoApiKey := os.Getenv("IP_INFO_KEY")
 	address, err = fetchFromIpinfo(ip, IpinfoApiKey)
