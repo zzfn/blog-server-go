@@ -34,7 +34,7 @@ func (ch *CommentsHandler) GetComments(c *fiber.Ctx) error {
 }
 func (ch *CommentsHandler) CreateComment(c *fiber.Ctx) error {
 	var input models.Comment
-	ip := c.IP()
+	ip := common.GetConnectingIp(c)
 	input.IP = ip
 	input.Address, _ = common.GetIpAddressInfo(ch.Redis, ip)
 	// Parse and validate request body

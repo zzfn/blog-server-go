@@ -24,7 +24,10 @@ func GetConnectingIp(c *fiber.Ctx) string {
 	if err := c.ReqHeaderParser(ipInfo); err != nil {
 		return "Unknown"
 	}
-
+	ipSlice := c.IPs()
+	if len(ipSlice) > 0 {
+		return ipSlice[0]
+	}
 	if ip := ipInfo.CfConnectingIp; ip != "" {
 		return ip
 	}
