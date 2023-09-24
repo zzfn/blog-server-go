@@ -40,7 +40,9 @@ func ShutdownServices(app *fiber.App, sqlDB *sql.DB, redisClient *redis.Client, 
 }
 
 func NewFiberApp() *fiber.App {
-	app := fiber.New()
+	app := fiber.New(fiber.Config{
+		ProxyHeader: fiber.HeaderXForwardedFor,
+	})
 	app.Use(cors.New())
 	app.Use(middleware.LoggingMiddleware)
 	app.Use(middleware.AuthMiddleware)
