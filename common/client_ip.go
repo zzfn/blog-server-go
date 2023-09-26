@@ -20,25 +20,14 @@ type IPInfo struct {
 // GetConnectingIp tries to get the client's real IP address using different headers.
 func GetConnectingIp(c *fiber.Ctx) string {
 	ipInfo := &IPInfo{}
-
 	if err := c.ReqHeaderParser(ipInfo); err != nil {
 		return "Unknown"
-	}
-	ipSlice := c.IPs()
-	if len(ipSlice) > 0 {
-		return ipSlice[0]
 	}
 	if ip := ipInfo.CfConnectingIp; ip != "" {
 		return ip
 	}
-	if ip := ipInfo.XRealIp; ip != "" {
-		return ip
-	}
-	if ip := ipInfo.XForwardedFor; ip != "" {
-		return ip
-	}
 
-	return c.IP()
+	return "Unknown"
 }
 
 type IpAddress struct {
