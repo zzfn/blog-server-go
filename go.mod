@@ -3,12 +3,12 @@ module blog-server-go
 go 1.21.0
 
 require (
-	github.com/elastic/go-elasticsearch/v8 v8.10.0
+	github.com/elastic/go-elasticsearch/v8 v8.10.1
 	github.com/fasthttp/websocket v1.5.4
 	github.com/go-co-op/gocron v1.35.2
 	github.com/gofiber/fiber/v2 v2.49.2
 	github.com/redis/go-redis/v9 v9.2.1
-	github.com/segmentio/kafka-go v0.4.43
+	github.com/segmentio/kafka-go v0.4.44
 	github.com/valyala/fasthttp v1.50.0
 	golang.org/x/crypto v0.14.0
 	gorm.io/driver/postgres v1.5.3
