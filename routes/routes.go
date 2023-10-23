@@ -12,6 +12,7 @@ type Handlers struct {
 	WebSocketHandler  handlers.WebSocketHandler
 	FriendLinkHandler handlers.FriendLinksHandler
 	AppUserHandler    handlers.AppUserHandler
+	FileHandler       handlers.FileHandler
 }
 
 func SetupRoutes(app *fiber.App, h *Handlers) {
@@ -47,4 +48,7 @@ func SetupRoutes(app *fiber.App, h *Handlers) {
 	appUsers.Post("/login", h.AppUserHandler.Login)            // 用户登录
 	appUsers.Post("/logout", h.AppUserHandler.Logout)          // 用户注销
 	appUsers.Get("/me", h.AppUserHandler.GetAuthenticatedUser) // 获取当前登录的用户信息
+	// file
+	files := v1.Group("/files")
+	files.Post("/upload", h.FileHandler.UploadFile)
 }
