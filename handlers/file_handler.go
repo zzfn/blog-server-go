@@ -24,6 +24,7 @@ func (fh *FileHandler) UploadFile(c *fiber.Ctx) error {
 	OssEndpoint := os.Getenv("OSS_ENDPOINT")
 	OssAccessKeyId := os.Getenv("OSS_ACCESS_KEY_ID")
 	OssAccessKeySecret := os.Getenv("OSS_ACCESS_KEY_SECRET")
+	OssBucket := os.Getenv("OSS_BUCKET")
 
 	// 每次请求时创建一个新的 OSS 客户端
 	client, err := oss.New(OssEndpoint, OssAccessKeyId, OssAccessKeySecret, oss.UseCname(true))
@@ -32,7 +33,7 @@ func (fh *FileHandler) UploadFile(c *fiber.Ctx) error {
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to create OSS client"})
 	}
 
-	bucket, err := client.Bucket("wwma")
+	bucket, err := client.Bucket(OssBucket)
 	if err != nil {
 		log.Error(err)
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to access OSS bucket"})
