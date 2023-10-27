@@ -13,6 +13,7 @@ type FileHandler struct {
 
 func (fh *FileHandler) UploadFile(c *fiber.Ctx) error {
 	file, err := c.FormFile("file")
+	path := c.FormValue("path")
 	if err != nil {
 		log.Error(err)
 		return c.Status(400).JSON(fiber.Map{"error": "Failed to read file from request"})
@@ -39,13 +40,13 @@ func (fh *FileHandler) UploadFile(c *fiber.Ctx) error {
 		log.Error(err)
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to open file"})
 	}
-	log.Info(file.Filename)
-	err = bucket.PutObject(file.Filename, fileContent)
+	objectKey := path + file.Filename
+	err = bucket.PutObject(objectKey, fileContent)
 
 	if err != nil {
 		log.Error(err)
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to upload to OSS"})
 	}
 
-	return c.Status(200).JSON([]string{OssEndpoint + file.Filename})
+	return c.Status(200).JSON([]string{OssEndpoint + objectKey})
 }

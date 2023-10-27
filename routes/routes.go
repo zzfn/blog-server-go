@@ -50,5 +50,5 @@ func SetupRoutes(app *fiber.App, h *Handlers) {
 	appUsers.Get("/me", h.AppUserHandler.GetAuthenticatedUser) // 获取当前登录的用户信息
 	// file
 	files := v1.Group("/files")
-	files.Post("/upload", h.FileHandler.UploadFile)
+	files.Post("/upload", middleware.AdminMiddleware(), h.FileHandler.UploadFile)
 }
