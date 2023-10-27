@@ -20,7 +20,7 @@ type Payload struct {
 }
 
 func GenerateToken(id string, isAdmin bool, username string) (string, error) {
-	secretKey := os.Getenv("SECRET_KEY")
+	secretKey := os.Getenv("TOKEN_SECRET_KEY")
 
 	payload := Payload{
 		UserID:   id,
@@ -54,7 +54,7 @@ func GenerateToken(id string, isAdmin bool, username string) (string, error) {
 }
 
 func ParseToken(token string) (Payload, error) {
-	secretKey := os.Getenv("SECRET_KEY")
+	secretKey := os.Getenv("TOKEN_SECRET_KEY")
 	ciphertext, err := base64.URLEncoding.DecodeString(token)
 	if err != nil {
 		return Payload{}, err
