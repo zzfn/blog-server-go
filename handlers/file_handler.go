@@ -4,7 +4,10 @@ import (
 	"github.com/aliyun/aliyun-oss-go-sdk/oss"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/log"
+	"net/url"
 	"os"
+	"path"
+	"strings"
 )
 
 type FileHandler struct {
@@ -13,7 +16,7 @@ type FileHandler struct {
 
 func (fh *FileHandler) UploadFile(c *fiber.Ctx) error {
 	file, err := c.FormFile("file")
-	path := c.FormValue("path")
+	objectPath := c.FormValue("objectPath")
 	if err != nil {
 		log.Error(err)
 		return c.Status(400).JSON(fiber.Map{"error": "Failed to read file from request"})
@@ -40,13 +43,20 @@ func (fh *FileHandler) UploadFile(c *fiber.Ctx) error {
 		log.Error(err)
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to open file"})
 	}
-	objectKey := path + file.Filename
+	defer fileContent.Close()
+	objectKey := path.Join(objectPath, file.Filename)
 	err = bucket.PutObject(objectKey, fileContent)
 
 	if err != nil {
 		log.Error(err)
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to upload to OSS"})
 	}
-
-	return c.Status(200).JSON([]string{OssEndpoint + objectKey})
+	u, err := url.Parse(OssEndpoint)
+	if err != nil {
+		log.Error(err)
+	}
+	trimmedObjectKey := strings.TrimPrefix(objectKey, "/")
+	u.Path = path.Join(u.Path, trimmedObjectKey)
+	finalUrl := u.String()
+	return c.Status(200).JSON([]string{finalUrl})
 }
