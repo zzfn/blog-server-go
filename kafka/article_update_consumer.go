@@ -38,7 +38,7 @@ func ArticleUpdateHandler(msg kafka.Message) {
 	fmt.Printf("Processing article update: %s = %s\n", string(msg.Key), string(msg.Value))
 	httpClient := &http.Client{Timeout: 10 * time.Second} // defining the http client here
 	secret := os.Getenv("NEXT_SECRET")
-	data := []byte(fmt.Sprintf(`{"tag": ["article"],"secret": "%s"}`, secret))
+	data := []byte(fmt.Sprintf(`{"tag": ["article","/post/%s"],"secret": "%s"}`, msg.Value, secret))
 	body, err := SendRequest(httpClient, "/api/revalidateTag", data)
 	if err != nil {
 		fmt.Println(err)
