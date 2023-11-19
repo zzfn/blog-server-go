@@ -51,4 +51,5 @@ func SetupRoutes(app *fiber.App, h *Handlers) {
 	// file
 	files := v1.Group("/files")
 	files.Post("/upload", middleware.AdminMiddleware(), h.FileHandler.UploadFile)
+	files.Get("/list", middleware.AdminMiddleware(), h.FileHandler.ListFile)
 }
