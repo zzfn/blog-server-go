@@ -27,11 +27,15 @@ func (ah *ArticleHandler) GetArticles(c *fiber.Ctx) error {
 
 	orderStr := c.Query("order", "created_at desc")
 	limitStr := c.Query("limit")
+	isActive := c.Query("isActive", "true")
 	isRss := c.Query("rss")
 	log.Info("isRss", isRss)
-	fields := "ID,TITLE,TAG,CREATED_AT,updated_at"
+	fields := "id,title,tag,created_at,updated_at"
 	if isRss == "true" {
 		fields += ",CONTENT"
+	}
+	if isActive == "true" {
+		fields += ",is_active"
 	}
 
 	query := ah.DB.Select(fields).Where("is_deleted", false).Where("is_active", true).Order(orderStr)
@@ -97,7 +101,7 @@ func (ah *ArticleHandler) CreateArticle(c *fiber.Ctx) error {
 		log.Errorf("Failed to save article: %v", result.Error) // 使用你的日志库记录错误
 		return c.Status(500).JSON(fiber.Map{"error": "Internal Server Error"})
 	}
-
+	ah.KafkaProducer.ProduceMessage(kafka.ArticleUpdateTopic, "id", string(article.ID))
 	return c.Status(fiber.StatusCreated).JSON(article)
 }
 
