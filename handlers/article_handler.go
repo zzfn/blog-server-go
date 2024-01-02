@@ -38,7 +38,7 @@ func (ah *ArticleHandler) GetArticles(c *fiber.Ctx) error {
 		fields += ",is_active"
 	}
 
-	query := ah.DB.Select(fields).Where("is_deleted", false).Order(orderStr)
+	query := ah.DB.Select(fields).Where("is_deleted", false).Where("is_active", isActive).Order(orderStr)
 
 	// 如果提供了 limit 参数，则应用它
 	if limitStr != "" {
