@@ -133,7 +133,7 @@ func main() {
 		kafka.FriendUpdateTopic:  kafka.FriendHandler,
 	}
 	// 初始化Kafka消费者
-	kafkaConsumer := kafka.MultiConsumer(topicHandlers)
+	kafkaConsumer := kafka.CreateMultiConsumer(topicHandlers)
 
 	// 注册路由
 	RegisterRoutes(app, baseHandler)

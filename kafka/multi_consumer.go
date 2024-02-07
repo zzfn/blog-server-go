@@ -33,7 +33,7 @@ func SendRequest(client *http.Client, apiPath string, requestData []byte) ([]byt
 	return body, nil
 }
 
-func MultiConsumer(topicHandlers map[string]MessageHandlerFunc) []*Consumer {
+func CreateMultiConsumer(topicHandlers map[string]MessageHandlerFunc) []*Consumer {
 	var consumers []*Consumer
 	for topic, handler := range topicHandlers {
 		consumer := NewConsumer(topic)
