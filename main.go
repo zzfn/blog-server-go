@@ -19,14 +19,17 @@ import (
 	"syscall"
 )
 
-func StartServices(app *fiber.App, kafkaConsumer *kafka.Consumer) {
-	kafkaConsumer.Start()
+func StartServices(app *fiber.App, kafkaConsumer []*kafka.Consumer) {
+	// Start Kafka consumer
+	for _, consumer := range kafkaConsumer {
+		consumer.Start()
+	}
 	if err := app.Listen(":8000"); err != nil {
 		log.Fatalf("Failed to start Fiber app: %v", err)
 	}
 }
 
-func ShutdownServices(app *fiber.App, sqlDB *sql.DB, redisClient *redis.Client, kafkaConsumer *kafka.Consumer) {
+func ShutdownServices(app *fiber.App, sqlDB *sql.DB, redisClient *redis.Client, kafkaConsumer []*kafka.Consumer) {
 	if err := sqlDB.Close(); err != nil {
 		log.Errorf("Error closing database: %v", err)
 	}
@@ -35,7 +38,9 @@ func ShutdownServices(app *fiber.App, sqlDB *sql.DB, redisClient *redis.Client, 
 		log.Errorf("Error closing Redis client: %v", err)
 	}
 
-	kafkaConsumer.Close()
+	for _, consumer := range kafkaConsumer {
+		consumer.Close()
+	}
 	_ = app.Shutdown()
 }
 
@@ -123,9 +128,12 @@ func main() {
 	// 初始化BaseHandler
 	kafkaProducer := kafka.NewProducer()
 	baseHandler := NewBaseHandler(db, redisClient, esClient, kafkaProducer, wsHandler)
-
+	topicHandlers := map[string]kafka.MessageHandlerFunc{
+		kafka.ArticleUpdateTopic: kafka.ArticleHandler,
+		kafka.FriendUpdateTopic:  kafka.FriendHandler,
+	}
 	// 初始化Kafka消费者
-	kafkaConsumer := kafka.NewArticleUpdateConsumer()
+	kafkaConsumer := kafka.MultiConsumer(topicHandlers)
 
 	// 注册路由
 	RegisterRoutes(app, baseHandler)

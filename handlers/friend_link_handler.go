@@ -37,6 +37,6 @@ func (flh *FriendLinksHandler) SaveFriendLink(c *fiber.Ctx) error {
 	if err := flh.DB.Create(&input).Error; err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to save friend link"})
 	}
-	flh.KafkaProducer.ProduceMessage(kafka.ArticleUpdateTopic, "id", "Friend link created")
+	flh.KafkaProducer.ProduceMessage(kafka.FriendUpdateTopic, "id", "Friend link created")
 	return c.Status(201).JSON(input)
 }

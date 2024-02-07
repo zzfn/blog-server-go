@@ -33,7 +33,7 @@ func NewConsumer(topic string) *Consumer {
 func (c *Consumer) Start() {
 	go func() {
 		for {
-			fmt.Println("Waiting for message")
+			fmt.Println("Waiting for message from topic:", c.reader.Config().Topic) // 打印 topic
 			msg, err := c.reader.ReadMessage(context.Background())
 			if err != nil {
 				log.Fatalf("Failed to read message: %v", err)
