@@ -1,10 +1,9 @@
 package middleware
 
 import (
-	"log"
-	"time"
-
 	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/log"
+	"time"
 )
 
 type RequestIPHeaders struct {
@@ -27,10 +26,8 @@ func LoggingMiddleware(c *fiber.Ctx) error {
 	if err := c.ReqHeaderParser(p); err != nil {
 		return err
 	}
-	log.Printf("Client IP: %s | Forwarded IPs: %v | X-Forwarded-For: %s | X-Real-Ip: %s ｜ Cf-Connecting-Ip: %s\n",
-		c.IP(), c.IPs(), p.XForwardedFor, p.XRealIp, p.CfConnectingIp)
 	// 打印请求方法、路径和耗时
-	log.Printf("[%s] %s - %v - IP: %s\n", c.Method(), c.Path(), duration, p.CfConnectingIp)
+	log.Info("[%s] %s - %v - IP: %s\n", c.Method(), c.Path(), duration, p.CfConnectingIp)
 
 	return err
 }
