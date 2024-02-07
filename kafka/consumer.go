@@ -2,11 +2,9 @@ package kafka
 
 import (
 	"context"
-	"fmt"
-	"log"
-	"os"
-
+	"github.com/gofiber/fiber/v2/log"
 	"github.com/segmentio/kafka-go"
+	"os"
 )
 
 type MessageHandlerFunc func(message kafka.Message)
@@ -33,13 +31,13 @@ func NewConsumer(topic string) *Consumer {
 func (c *Consumer) Start() {
 	go func() {
 		for {
-			fmt.Println("Waiting for message from topic:", c.reader.Config().Topic) // 打印 topic
+			log.Info("Waiting for message from topic:", c.reader.Config().Topic) // 打印 topic
 			msg, err := c.reader.ReadMessage(context.Background())
 			if err != nil {
 				log.Fatalf("Failed to read message: %v", err)
 			}
 			c.handler(msg)
-			log.Printf("message at offset %d: %s = %s\n\n", msg.Offset, string(msg.Key), string(msg.Value))
+			log.Error("message at offset %d: %s = %s\n\n", msg.Offset, string(msg.Key), string(msg.Value))
 		}
 	}()
 }
