@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"blog-server-go/common"
+	"blog-server-go/kafka"
 	"blog-server-go/models"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/log"
@@ -23,16 +25,18 @@ func (flh *FriendLinksHandler) GetFriendLinks(c *fiber.Ctx) error {
 // SaveFriendLink saves a new friend link to the database
 func (flh *FriendLinksHandler) SaveFriendLink(c *fiber.Ctx) error {
 	var input models.FriendLink
-	// Parse and validate request body
 	if err := c.BodyParser(&input); err != nil {
 		log.Error(err)
-		return c.Status(400).JSON(fiber.Map{"error": "Failed to parse request body"})
+		return &common.BusinessException{
+			Code:    5000,
+			Message: "无法解析JSON",
+		}
 	}
 
 	// Save to DB
 	if err := flh.DB.Create(&input).Error; err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to save friend link"})
 	}
-
+	flh.KafkaProducer.ProduceMessage(kafka.ArticleUpdateTopic, "id", "Friend link created")
 	return c.Status(201).JSON(input)
 }

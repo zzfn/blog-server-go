@@ -14,6 +14,7 @@ type Producer struct {
 
 const (
 	ArticleUpdateTopic = "ARTICLE_UPDATE_TOPIC"
+	FriendUpdateTopic  = "FRIEND_UPDATE_TOPIC"
 )
 
 func NewProducer() *Producer {

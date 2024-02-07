@@ -13,6 +13,7 @@ import (
 
 func SendRequest(client *http.Client, apiPath string, requestData []byte) ([]byte, error) {
 	nextPublicBaseUrl := os.Getenv("NEXT_PUBLIC_BASE_URL")
+	log.Info("nextPublicBaseUrl", nextPublicBaseUrl)
 	req, err := http.NewRequest("POST", nextPublicBaseUrl+apiPath, bytes.NewBuffer(requestData))
 	if err != nil {
 		return nil, fmt.Errorf("Error creating request: %v", err)
@@ -38,14 +39,19 @@ func ArticleUpdateHandler(msg kafka.Message) {
 	fmt.Printf("Processing article update: %s = %s\n", string(msg.Key), string(msg.Value))
 	httpClient := &http.Client{Timeout: 10 * time.Second} // defining the http client here
 	secret := os.Getenv("NEXT_SECRET")
-	data := []byte(fmt.Sprintf(`{"tag": ["article","/post/%s"],"secret": "%s"}`, msg.Value, secret))
+	var data []byte
+	data = []byte(fmt.Sprintf(`{"tag": ["article","/post/%s"],"secret": "%s"}`, msg.Value, secret))
 	body, err := SendRequest(httpClient, "/api/revalidateTag", data)
 	if err != nil {
 		fmt.Println(err)
 		return
 	}
 	log.Info("Response Body from first API:", string(body))
-	data = []byte(fmt.Sprintf(`{"path": ["/post/%s"],"secret": "%s"}`, msg.Value, secret))
+	if string(msg.Value) == "Friend link created" {
+		data = []byte(fmt.Sprintf(`{"path": ["/friends"],"secret": "%s"}`, secret))
+	} else {
+		data = []byte(fmt.Sprintf(`{"path": ["/post/%s"],"secret": "%s"}`, msg.Value, secret))
+	}
 	body, err = SendRequest(httpClient, "/api/revalidatePath", data)
 	if err != nil {
 		fmt.Println(err)
