@@ -11,9 +11,11 @@ import (
 	"github.com/elastic/go-elasticsearch/v8/esapi"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/log"
+	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
 	"io"
 	"strconv"
+	"time"
 )
 
 // ArticleHandler 处理与文章相关的请求
@@ -71,11 +73,18 @@ func (ah *ArticleHandler) GetArticleByID(c *fiber.Ctx) error {
 	}
 	return c.JSON(article)
 }
+
 func (ah *ArticleHandler) UpdateArticleViews(c *fiber.Ctx) error {
 	id := c.Params("id")
 	article := models.Article{
 		BaseModel: models.BaseModel{ID: models.SnowflakeID(id)},
 	}
+	ip := common.GetConnectingIp(c)
+	var ctx = context.Background()
+	if ah.Redis.ZScore(ctx, "article_views:"+id, ip).Val() > float64(time.Now().Add(-time.Minute*30).UnixNano()/int64(time.Millisecond)) {
+		return c.JSON(0)
+	}
+	ah.Redis.ZAdd(ctx, "article_views:"+id, redis.Z{Score: float64(time.Now().UnixNano() / int64(time.Millisecond)), Member: ip})
 	result := ah.DB.Model(&article).UpdateColumn("view_count", gorm.Expr("view_count + ?", 1))
 	if result.Error != nil {
 		log.Errorf("Failed to update article views: %v", result.Error) // 使用你的日志库记录错误
