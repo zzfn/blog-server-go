@@ -79,10 +79,11 @@ func (ah *ArticleHandler) UpdateArticleViews(c *fiber.Ctx) error {
 	article := models.Article{
 		BaseModel: models.BaseModel{ID: models.SnowflakeID(id)},
 	}
+	ah.DB.Select("view_count").Take(&article, id)
 	ip := common.GetConnectingIp(c)
 	var ctx = context.Background()
 	if ah.Redis.ZScore(ctx, "article_views:"+id, ip).Val() > float64(time.Now().Add(-time.Minute*30).UnixNano()/int64(time.Millisecond)) {
-		return c.JSON(0)
+		return c.JSON(article.ViewCount)
 	}
 	ah.Redis.ZAdd(ctx, "article_views:"+id, redis.Z{Score: float64(time.Now().UnixNano() / int64(time.Millisecond)), Member: ip})
 	result := ah.DB.Model(&article).UpdateColumn("view_count", gorm.Expr("view_count + ?", 1))
@@ -90,8 +91,7 @@ func (ah *ArticleHandler) UpdateArticleViews(c *fiber.Ctx) error {
 		log.Errorf("Failed to update article views: %v", result.Error) // 使用你的日志库记录错误
 		return c.Status(500).JSON(fiber.Map{"error": "Internal Server Error"})
 	}
-
-	return c.JSON(result.RowsAffected)
+	return c.JSON(article.ViewCount)
 }
 
 // CreateArticle 创建文章
