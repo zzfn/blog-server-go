@@ -88,12 +88,14 @@ func RegisterRoutes(app *fiber.App, baseHandler handlers.BaseHandler) {
 	appUserHandler := handlers.AppUserHandler{BaseHandler: baseHandler}
 	webSocketHandler := handlers.WebSocketHandler{BaseHandler: baseHandler}
 	friendLinksHandler := handlers.FriendLinksHandler{BaseHandler: baseHandler}
+	blogConfigHandler := handlers.BlogConfigHandler{BaseHandler: baseHandler}
 	allHandlers := &routes.Handlers{
 		ArticleHandler:    articleHandler,
 		CommentsHandler:   commentsHandler,
 		WebSocketHandler:  webSocketHandler,
 		AppUserHandler:    appUserHandler,
 		FriendLinkHandler: friendLinksHandler,
+		BlogConfigHandler: blogConfigHandler,
 	}
 	routes.SetupRoutes(app, allHandlers)
 }
