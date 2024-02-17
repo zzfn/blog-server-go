@@ -36,6 +36,10 @@ func (auh *AppUserHandler) Register(c *fiber.Ctx) error {
 	}
 	return c.Status(201).JSON(input)
 }
+func (auh *AppUserHandler) Finger(c *fiber.Ctx) error {
+	newID, _ := common.GenerateID()
+	return c.JSON(newID)
+}
 
 // Login 用户登录
 func (auh *AppUserHandler) Login(c *fiber.Ctx) error {
@@ -62,7 +66,6 @@ func (auh *AppUserHandler) Login(c *fiber.Ctx) error {
 	log.Info("Getting old token:", user.ID)
 	oldToken, err := auh.Redis.HGet(ctx, "username_to_token", string(user.ID)).Result()
 	if err == nil && oldToken != "" {
-		// 从 "Token → 用户名" 哈希表中删除这个 Token
 		auh.Redis.HDel(ctx, "token_to_username", oldToken)
 	}
 	auh.Redis.HSet(ctx, "username_to_token", string(user.ID), token)

@@ -13,6 +13,7 @@ type Handlers struct {
 	FriendLinkHandler handlers.FriendLinksHandler
 	AppUserHandler    handlers.AppUserHandler
 	FileHandler       handlers.FileHandler
+	BlogConfigHandler handlers.BlogConfigHandler
 }
 
 func SetupRoutes(app *fiber.App, h *Handlers) {
@@ -44,6 +45,7 @@ func SetupRoutes(app *fiber.App, h *Handlers) {
 	friendLinks.Get("/", h.FriendLinkHandler.GetFriendLinks)
 	//App User
 	appUsers := v1.Group("/app-users")                         // 修改为 app-users
+	appUsers.Get("/finger", h.AppUserHandler.Finger)           // 注册新用户
 	appUsers.Post("/register", h.AppUserHandler.Register)      // 注册新用户
 	appUsers.Post("/login", h.AppUserHandler.Login)            // 用户登录
 	appUsers.Post("/logout", h.AppUserHandler.Logout)          // 用户注销
@@ -52,4 +54,7 @@ func SetupRoutes(app *fiber.App, h *Handlers) {
 	files := v1.Group("/files")
 	files.Post("/upload", middleware.AdminMiddleware(), h.FileHandler.UploadFile)
 	files.Get("/list", middleware.AdminMiddleware(), h.FileHandler.ListFile)
+	config := v1.Group("/config")
+	config.Get("/site", h.BlogConfigHandler.GetSiteConfig)
+	config.Post("/site", h.BlogConfigHandler.SaveSiteConfig)
 }
