@@ -131,8 +131,9 @@ func main() {
 	kafkaProducer := kafka.NewProducer()
 	baseHandler := NewBaseHandler(db, redisClient, esClient, kafkaProducer, wsHandler)
 	topicHandlers := map[string]kafka.MessageHandlerFunc{
-		kafka.ArticleUpdateTopic: kafka.ArticleHandler,
-		kafka.FriendUpdateTopic:  kafka.FriendHandler,
+		kafka.ArticleUpdateTopic:    kafka.ArticleHandler,
+		kafka.FriendUpdateTopic:     kafka.FriendHandler,
+		kafka.RevalidateUpdateTopic: kafka.RevalidateHandler,
 	}
 	// 初始化Kafka消费者
 	kafkaConsumer := kafka.CreateMultiConsumer(topicHandlers)

@@ -2,10 +2,12 @@ package handlers
 
 import (
 	"blog-server-go/common"
+	"blog-server-go/kafka"
 	"context"
 	"encoding/json"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/log"
+	"strings"
 )
 
 type BlogConfigHandler struct {
@@ -61,6 +63,8 @@ func (bch *BlogConfigHandler) SaveSiteConfig(c *fiber.Ctx) error {
 			}
 		}
 	}
-
+	var paths []string
+	paths = append(paths, "/")
+	bch.KafkaProducer.ProduceMessage(kafka.RevalidateUpdateTopic, "path", strings.Join(paths, ","))
 	return c.JSON(body)
 }
