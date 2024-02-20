@@ -21,7 +21,7 @@ func ArticleHandler(msg kafka.Message) {
 		return
 	}
 	log.Info("Response Body from first API:", string(body))
-	data = []byte(fmt.Sprintf(`{"path": ["/post/%s"],"secret": "%s"}`, msg.Value, secret))
+	data = []byte(fmt.Sprintf(`{"path": ["/post/%s","/api/feed.xml"],"secret": "%s"}`, msg.Value, secret))
 	body, err = SendRequest(httpClient, "/api/revalidatePath", data)
 	if err != nil {
 		fmt.Println(err)
