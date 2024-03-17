@@ -47,4 +47,4 @@ steps:
       command_timeout: 2m
       script:
         - kubectl apply -f https://git.ooxo.cc/k8s/yaml/raw/branch/main/blog-server.yaml
-        - kubectl patch deployment blog-server --type json -p '{"spec":{"template":{"spec":{"containers":[{"name":"blog-server","image":"hub.ooxo.cc/home/blog-server:${DRONE_COMMIT_SHA:0:8}"}]}}}}'
+        - kubectl patch deployment blog-server -p '{"spec":{"template":{"spec":{"containers":[{"name":"blog-server","image":"hub.ooxo.cc/home/blog-server:${DRONE_COMMIT_SHA:0:8}"}]}}}}'
