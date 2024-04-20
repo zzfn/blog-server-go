@@ -42,6 +42,10 @@ func (auh *AppUserHandler) Github(c *fiber.Ctx) error {
 		AvatarUrl string `json:"avatar_url"`
 		Nickname  bool   `json:"nickname"`
 	}
+	if err := c.BodyParser(&input); err != nil {
+		log.Error(err)
+		return c.Status(400).JSON(fiber.Map{"error": "Failed to parse request body"})
+	}
 	user := models.AppUser{}
 	if err := auh.DB.Where("username = ?", input.Username).First(&user).Error; err != nil {
 		auh.DB.Create(&input)
