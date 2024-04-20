@@ -16,8 +16,7 @@ func (ch *CommentsHandler) GetComments(c *fiber.Ctx) error {
 	objectType := c.Query("objectType")
 	var comments []models.Comment
 
-	query := ch.DB.Preload("Replies").Where("is_deleted", false)
-
+	query := ch.DB.Preload("Replies").Preload("Replies.AppUser").Joins("AppUser")
 	if objectId != "" {
 		query = query.Where("object_id", objectId)
 	}
@@ -26,7 +25,7 @@ func (ch *CommentsHandler) GetComments(c *fiber.Ctx) error {
 		query = query.Where("object_type", objectType)
 	}
 
-	if err := query.Order("created_at desc").Find(&comments).Error; err != nil {
+	if err := query.Order("created_at desc").Find(&comments, "comment.is_deleted", false).Error; err != nil {
 		return c.Status(500).JSON(fiber.Map{"error": "Failed to fetch comments"})
 	}
 
