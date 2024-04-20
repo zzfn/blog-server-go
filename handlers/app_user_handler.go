@@ -40,7 +40,7 @@ func (auh *AppUserHandler) Github(c *fiber.Ctx) error {
 	var input struct {
 		Username  string `json:"username"`
 		AvatarUrl string `json:"avatar_url"`
-		Nickname  bool   `json:"nickname"`
+		Nickname  string `json:"nickname"`
 	}
 	if err := c.BodyParser(&input); err != nil {
 		log.Error(err)

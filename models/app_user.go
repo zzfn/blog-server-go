@@ -5,6 +5,6 @@ type AppUser struct {
 	Username  string `json:"username"`
 	Password  string `json:"password"`
 	IsAdmin   bool   `json:"isAdmin"`
-	AvatarUrl bool   `json:"avatar_url"`
-	Nickname  bool   `json:"nickname"`
+	AvatarUrl string `json:"avatar_url"`
+	Nickname  string `json:"nickname"`
 }
