@@ -40,6 +40,7 @@ func (auh *AppUserHandler) Github(c *fiber.Ctx) error {
 	var input struct {
 		Username  string `json:"username"`
 		AvatarUrl string `json:"avatar_url"`
+		Nickname  bool   `json:"nickname"`
 	}
 	user := models.AppUser{}
 	if err := auh.DB.Where("username = ?", input.Username).First(&user).Error; err != nil {
