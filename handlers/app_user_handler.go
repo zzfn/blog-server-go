@@ -48,8 +48,16 @@ func (auh *AppUserHandler) Github(c *fiber.Ctx) error {
 	}
 	user := models.AppUser{}
 	if err := auh.DB.Where("username = ?", input.Username).First(&user).Error; err != nil {
-		auh.DB.Create(&input)
-		return c.JSON(input)
+		newUser := models.AppUser{
+			Username:  input.Username,
+			AvatarUrl: input.AvatarUrl,
+			Nickname:  input.Nickname,
+		}
+		if err := auh.DB.Create(&newUser).Error; err != nil {
+			log.Error(err)
+			return c.Status(500).JSON(fiber.Map{"error": "Failed to create user: " + err.Error()})
+		}
+		return c.JSON(newUser)
 	}
 	return c.JSON(user)
 }
