@@ -36,9 +36,17 @@ func (auh *AppUserHandler) Register(c *fiber.Ctx) error {
 	}
 	return c.Status(201).JSON(input)
 }
-func (auh *AppUserHandler) Finger(c *fiber.Ctx) error {
-	newID, _ := common.GenerateID()
-	return c.JSON(newID)
+func (auh *AppUserHandler) Github(c *fiber.Ctx) error {
+	var input struct {
+		Username  string `json:"username"`
+		AvatarUrl string `json:"avatar_url"`
+	}
+	user := models.AppUser{}
+	if err := auh.DB.Where("username = ?", input.Username).First(&user).Error; err != nil {
+		auh.DB.Create(&input)
+		return c.JSON(input)
+	}
+	return c.JSON(user)
 }
 
 // Login 用户登录
