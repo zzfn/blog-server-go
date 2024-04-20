@@ -7,7 +7,7 @@ type Comment struct {
 	Content    string  `json:"content"`
 	IP         string  `json:"ip"`
 	Address    string  `json:"address"`
-	UserID     string  `json:"userID"`
+	Username   string  `json:"username"`
 	Replies    []Reply `json:"replies" gorm:"foreignKey:CommentID"`
 }
 
@@ -17,5 +17,5 @@ type Reply struct {
 	Content   string `json:"content"`
 	IP        string `json:"ip"`
 	Address   string `json:"address"`
-	UserID    string `json:"userID"`
+	Username  string `json:"username"`
 }
