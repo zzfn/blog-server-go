@@ -32,10 +32,22 @@ func (flh *FriendLinksHandler) SaveFriendLink(c *fiber.Ctx) error {
 			Message: "无法解析JSON",
 		}
 	}
-
-	// Save to DB
-	if err := flh.DB.Create(&input).Error; err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": "Failed to save friend link"})
+	//如果有id，就更新
+	if input.ID != "" {
+		var friendLink models.FriendLink
+		if err := flh.DB.Where("id", input.ID).First(&friendLink).Error; err != nil {
+			return c.Status(404).JSON(fiber.Map{"error": "Friend link not found"})
+		}
+		friendLink.Description = input.Description
+		friendLink.IsActive = input.IsActive
+		friendLink.Logo = input.Logo
+		friendLink.Name = input.Name
+		friendLink.Url = input.Url
+		flh.DB.Updates(&friendLink)
+	} else {
+		if err := flh.DB.Create(&input).Error; err != nil {
+			return c.Status(500).JSON(fiber.Map{"error": "Failed to save friend link"})
+		}
 	}
 	flh.KafkaProducer.ProduceMessage(kafka.FriendUpdateTopic, "id", "Friend link created")
 	return c.Status(201).JSON(input)
