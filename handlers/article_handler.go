@@ -30,6 +30,7 @@ func (ah *ArticleHandler) GetArticles(c *fiber.Ctx) error {
 	orderStr := c.Query("order", "created_at desc")
 	limitStr := c.Query("limit")
 	isActive := c.Query("isActive", "true")
+	tagStr := c.Query("tag")
 	isRss := c.Query("rss")
 	log.Info("isRss", isRss)
 	fields := "id,title,tag,created_at,updated_at,sort_order"
@@ -42,6 +43,9 @@ func (ah *ArticleHandler) GetArticles(c *fiber.Ctx) error {
 
 	query := ah.DB.Select(fields).Where("is_deleted", false).Where("is_active", isActive).Order("sort_order desc").Order(orderStr)
 
+	if tagStr != "" {
+		query = query.Where("tag = ?", tagStr)
+	}
 	// 如果提供了 limit 参数，则应用它
 	if limitStr != "" {
 		limit, err := strconv.Atoi(limitStr)
@@ -50,7 +54,6 @@ func (ah *ArticleHandler) GetArticles(c *fiber.Ctx) error {
 		}
 		query = query.Limit(limit)
 	}
-
 	result := query.Find(&articles)
 	if result.Error != nil {
 		log.Error(result.Error)

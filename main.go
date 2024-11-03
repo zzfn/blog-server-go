@@ -7,6 +7,7 @@ import (
 	"blog-server-go/kafka"
 	"blog-server-go/middleware"
 	"blog-server-go/routes"
+	"blog-server-go/tasks"
 	"database/sql"
 	"github.com/elastic/go-elasticsearch/v8"
 	"github.com/gofiber/fiber/v2"
@@ -141,7 +142,7 @@ func main() {
 	// 注册路由
 	RegisterRoutes(app, baseHandler)
 	// 开始定时任务
-	//go tasks.StartCronJobs()
+	go tasks.StartCronJobs()
 	// 启动服务
 	StartServices(app, kafkaConsumer)
 
