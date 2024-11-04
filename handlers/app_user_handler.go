@@ -84,7 +84,7 @@ func (auh *AppUserHandler) Login(c *fiber.Ctx) error {
 	}
 	token, _ := common.GenerateToken(string(user.ID), user.IsAdmin, user.Username)
 	var ctx = context.Background()
-	log.Info("Getting old token:", user.ID)
+	log.Info("Getting old token:", token)
 	oldToken, err := auh.Redis.HGet(ctx, "username_to_token", string(user.ID)).Result()
 	if err == nil && oldToken != "" {
 		auh.Redis.HDel(ctx, "token_to_username", oldToken)

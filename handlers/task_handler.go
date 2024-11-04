@@ -20,17 +20,34 @@ func (th *TaskHandler) SaveTaskList(c *fiber.Ctx) error {
 			Message: "无法解析JSON",
 		}
 	}
-
+	log.Info(task)
 	result := th.DB.Create(&task)
 	if result.Error != nil {
-		log.Errorf("Failed to save article: %v", result.Error) // 使用你的日志库记录错误
+		log.Errorf("Failed to save task: %v", result.Error) // 使用你的日志库记录错误
 		return c.Status(500).JSON(fiber.Map{"error": "Internal Server Error"})
 	}
 	return c.Status(fiber.StatusCreated).JSON(task)
 }
+func (th *TaskHandler) UpdateTaskList(c *fiber.Ctx) error {
+	var task models.Task
+	if err := c.BodyParser(&task); err != nil {
+		log.Error(err)
+		return &common.BusinessException{
+			Code:    5000,
+			Message: "无法解析JSON",
+		}
+	}
+	log.Info(task)
+	result := th.DB.Updates(&task)
+	if result.Error != nil {
+		log.Errorf("Failed to save task: %v", result.Error) // 使用你的日志库记录错误
+		return c.Status(500).JSON(fiber.Map{"error": "Internal Server Error"})
+	}
+	return c.Status(fiber.StatusOK).JSON(task)
+}
 func (th *TaskHandler) GetTaskList(c *fiber.Ctx) error {
 	var tasks []models.Task
-	result := th.DB.Find(&tasks)
+	result := th.DB.Order("created_at DESC").Find(&tasks)
 	if result.Error != nil {
 		log.Errorf("Failed to get tasks: %v", result.Error)
 		return c.Status(500).JSON(fiber.Map{"error": "Internal Server Error"})
