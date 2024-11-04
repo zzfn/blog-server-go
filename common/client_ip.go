@@ -68,7 +68,7 @@ func fetchFromAmap(ip, apiKey string) (string, error) {
 
 func fetchFromIpinfo(ip, apiKey string) (string, error) {
 	url := fmt.Sprintf("https://ipinfo.io/%s/json?token=%s", ip, apiKey)
-	log.Info("Fetching from Ipinfo", url)
+	log.Info("Fetching from Ipinfo: ", url)
 	resp, err := http.Get(url)
 	if err != nil {
 		return "", err
@@ -80,7 +80,7 @@ func fetchFromIpinfo(ip, apiKey string) (string, error) {
 		return "", err
 	}
 	if info.City != "" && info.Region != "" && info.Country != "" {
-		return fmt.Sprintf("%s, %s, %s, %s", info.City, info.Region, info.Country, info.Org), nil
+		return fmt.Sprintf("%s, %s, %s", info.City, info.Region, info.Country), nil
 	} else {
 		return "", fmt.Errorf("Incomplete data from Ipinfo")
 	}
