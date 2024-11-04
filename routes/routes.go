@@ -14,6 +14,7 @@ type Handlers struct {
 	AppUserHandler    handlers.AppUserHandler
 	FileHandler       handlers.FileHandler
 	BlogConfigHandler handlers.BlogConfigHandler
+	TaskHandler       handlers.TaskHandler
 }
 
 func SetupRoutes(app *fiber.App, h *Handlers) {
@@ -57,4 +58,8 @@ func SetupRoutes(app *fiber.App, h *Handlers) {
 	config := v1.Group("/config")
 	config.Get("/site", h.BlogConfigHandler.GetSiteConfig)
 	config.Post("/site", h.BlogConfigHandler.SaveSiteConfig)
+	// task
+	task := v1.Group("/task")
+	task.Get("/", h.TaskHandler.GetTaskList)
+	task.Post("/", h.TaskHandler.SaveTask)
 }
