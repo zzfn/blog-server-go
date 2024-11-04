@@ -11,7 +11,7 @@ type TaskHandler struct {
 	BaseHandler
 }
 
-func (th *TaskHandler) GetTaskList(c *fiber.Ctx) error {
+func (th *TaskHandler) SaveTaskList(c *fiber.Ctx) error {
 	var task models.Task
 	if err := c.BodyParser(&task); err != nil {
 		log.Error(err)
@@ -28,6 +28,12 @@ func (th *TaskHandler) GetTaskList(c *fiber.Ctx) error {
 	}
 	return c.Status(fiber.StatusCreated).JSON(task)
 }
-func (th *TaskHandler) SaveTask(c *fiber.Ctx) error {
-	return nil
+func (th *TaskHandler) GetTaskList(c *fiber.Ctx) error {
+	var tasks []models.Task
+	result := th.DB.Find(&tasks)
+	if result.Error != nil {
+		log.Errorf("Failed to get tasks: %v", result.Error)
+		return c.Status(500).JSON(fiber.Map{"error": "Internal Server Error"})
+	}
+	return c.JSON(tasks)
 }

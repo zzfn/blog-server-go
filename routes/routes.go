@@ -61,5 +61,5 @@ func SetupRoutes(app *fiber.App, h *Handlers) {
 	// task
 	task := v1.Group("/task")
 	task.Get("/", h.TaskHandler.GetTaskList)
-	task.Post("/", h.TaskHandler.SaveTask)
+	task.Post("/", h.TaskHandler.SaveTaskList)
 }
