@@ -54,3 +54,14 @@ func (th *TaskHandler) GetTaskList(c *fiber.Ctx) error {
 	}
 	return c.JSON(tasks)
 }
+func (th *TaskHandler) DeleteTask(c *fiber.Ctx) error {
+	id, err := common.ParseString(c.Params("id"))
+	if err != nil {
+		return c.Status(400).JSON(fiber.Map{"error": "Invalid ID"})
+	}
+	result := th.DB.Delete(&models.Task{}, id)
+	if result.Error != nil {
+		return c.Status(500).JSON(fiber.Map{"error": "Failed to delete task"})
+	}
+	return c.JSON(fiber.Map{"message": "Task deleted successfully"})
+}
