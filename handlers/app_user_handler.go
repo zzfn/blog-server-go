@@ -39,8 +39,7 @@ func (auh *AppUserHandler) Register(c *fiber.Ctx) error {
 func (auh *AppUserHandler) Github(c *fiber.Ctx) error {
 	var input struct {
 		Username  string `json:"username"`
-		AvatarUrl string `json:"avatar_url"`
-		Nickname  string `json:"nickname"`
+		AvatarUrl string `json:"avatarUrl"`
 	}
 	if err := c.BodyParser(&input); err != nil {
 		log.Error(err)
@@ -51,7 +50,6 @@ func (auh *AppUserHandler) Github(c *fiber.Ctx) error {
 		newUser := models.AppUser{
 			Username:  input.Username,
 			AvatarUrl: input.AvatarUrl,
-			Nickname:  input.Nickname,
 		}
 		if err := auh.DB.Create(&newUser).Error; err != nil {
 			log.Error(err)
