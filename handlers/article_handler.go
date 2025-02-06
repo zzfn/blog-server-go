@@ -315,3 +315,29 @@ func (ah *ArticleHandler) SyncSQLToES(c *fiber.Ctx) error {
 
 	return c.JSON(nil)
 }
+
+func (ah *ArticleHandler) GetArticleSummary(c *fiber.Ctx) error {
+	id := c.Params("id")
+	var ctx = context.Background()
+	summary, _ := ah.Redis.HGet(ctx, "articleSummary", id).Result()
+
+	return c.JSON(summary)
+}
+
+func (ah *ArticleHandler) UpdateArticleComments(c *fiber.Ctx) error {
+	// 解析入参 summary 存入redis
+	// 入参 {summary:"xxxxxx"}
+	id := c.Params("id")
+	var ctx = context.Background()
+
+	var inputArticle struct {
+		Summary string `json:"summary"`
+	}
+	if err := c.BodyParser(&inputArticle); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(common.NewResponse(fiber.StatusBadRequest, "Invalid request body", nil))
+	}
+	if err := ah.Redis.HSet(ctx, "articleSummary", id, inputArticle.Summary).Err(); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(common.NewResponse(fiber.StatusInternalServerError, "Failed to update article summary", nil))
+	}
+	return c.JSON(common.NewResponse(fiber.StatusOK, "Article summary updated successfully", nil))
+}

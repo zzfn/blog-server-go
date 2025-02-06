@@ -32,6 +32,9 @@ func SetupRoutes(app *fiber.App, h *Handlers) {
 	articles.Get("/search/sync", h.ArticleHandler.SyncSQLToES)
 	articles.Get("/:id", h.ArticleHandler.GetArticleByID)
 	articles.Put("/:id/views", h.ArticleHandler.UpdateArticleViews)
+	// 摘要
+	articles.Get("/summary/:id", h.ArticleHandler.GetArticleSummary)
+	articles.Post("/summary/:id", h.ArticleHandler.UpdateArticleComments)
 
 	// Comments
 	comments := v1.Group("/comments")
