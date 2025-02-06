@@ -130,6 +130,7 @@ func (ah *ArticleHandler) UpdateArticle(c *fiber.Ctx) error {
 	}
 
 	var existingArticle models.Article
+	ah.Redis.HDel(context.Background(), "articleSummary", id)
 	result := ah.DB.Take(&existingArticle, "id = ?", id)
 	if result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
