@@ -334,10 +334,12 @@ func (ah *ArticleHandler) UpdateArticleComments(c *fiber.Ctx) error {
 		Summary string `json:"summary"`
 	}
 	if err := c.BodyParser(&inputArticle); err != nil {
+		common.HandleError(err, "Error incrementing keyword score:")
+
 		return c.Status(fiber.StatusBadRequest).JSON(common.NewResponse(fiber.StatusBadRequest, "Invalid request body", nil))
 	}
 	if err := ah.Redis.HSet(ctx, "articleSummary", id, inputArticle.Summary).Err(); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(common.NewResponse(fiber.StatusInternalServerError, "Failed to update article summary", nil))
 	}
-	return c.JSON(common.NewResponse(fiber.StatusOK, "Article summary updated successfully", nil))
+	return c.JSON("Article summary updated successfully")
 }
