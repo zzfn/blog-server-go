@@ -4,6 +4,8 @@ import (
 	"blog-server-go/common"
 	"encoding/json"
 	"errors"
+	"strings"
+
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/log"
 )
@@ -11,6 +13,10 @@ import (
 func ResponseMiddleware(c *fiber.Ctx) error {
 	// 检查是否为WebSocket的握手请求
 	if c.Get("Upgrade") == "websocket" && c.Get("Connection") == "Upgrade" {
+		return c.Next()
+	}
+	//检查是否是下载的响应
+	if strings.Contains(c.Path(), "/export/markdown/") {
 		return c.Next()
 	}
 	// 先调用下一个中间件或路由处理函数

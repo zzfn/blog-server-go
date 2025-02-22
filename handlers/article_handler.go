@@ -8,14 +8,17 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
+	"net/url"
+	"strconv"
+	"time"
+
 	"github.com/elastic/go-elasticsearch/v8/esapi"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/log"
 	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
-	"io"
-	"strconv"
-	"time"
 )
 
 // ArticleHandler 处理与文章相关的请求
@@ -343,4 +346,37 @@ func (ah *ArticleHandler) UpdateArticleComments(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(common.NewResponse(fiber.StatusInternalServerError, "Failed to update article summary", nil))
 	}
 	return c.JSON("Article summary updated successfully")
+}
+
+// ExportArticleMarkdown handles exporting article as markdown file
+func (ah *ArticleHandler) ExportArticleMarkdown(c *fiber.Ctx) error {
+	id := c.Params("id")
+	var article models.Article
+	result := ah.DB.Take(&article, id)
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			log.Error("Article not found:", id)
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Article not found"})
+		}
+		log.Error("Database error:", result.Error)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to retrieve article"})
+	}
+
+	// 验证文章标题
+	if article.Title == "" {
+		log.Error("Article title is empty for ID:", id)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Invalid article title"})
+	}
+
+	filename := url.QueryEscape(article.Title)
+
+	// 设置响应头
+	contentDisposition := fmt.Sprintf("attachment; filename=%s.md", filename)
+	contentType := "text/markdown"
+
+	// 使用Response().Header来设置响应头
+	c.Response().Header.Set("Content-Disposition", contentDisposition)
+	c.Response().Header.Set("Content-Type", contentType)
+
+	return c.SendString(article.Content)
 }

@@ -35,6 +35,7 @@ func SetupRoutes(app *fiber.App, h *Handlers) {
 	// 摘要
 	articles.Get("/summary/:id", h.ArticleHandler.GetArticleSummary)
 	articles.Post("/summary/:id", h.ArticleHandler.UpdateArticleComments)
+	articles.Get("/export/markdown/:id", h.ArticleHandler.ExportArticleMarkdown)
 
 	// Comments
 	comments := v1.Group("/comments")
