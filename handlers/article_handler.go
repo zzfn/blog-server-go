@@ -10,8 +10,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"mime/multipart"
+	"net/http"
 	"net/url"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/elastic/go-elasticsearch/v8/esapi"
@@ -377,4 +380,294 @@ func (ah *ArticleHandler) ExportArticleMarkdown(c *fiber.Ctx) error {
 
 	// 返回二进制数据
 	return c.Send([]byte(article.Content))
+}
+
+func (ah *ArticleHandler) SyncToDify(c *fiber.Ctx) error {
+	id := c.Params("id")
+	var article models.Article
+	result := ah.DB.Take(&article, id)
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			log.Error("Article not found:", id)
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Article not found"})
+		}
+		log.Error("Database error:", result.Error)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to retrieve article"})
+	}
+
+	// 准备文章内容
+	var buf bytes.Buffer
+	buf.WriteString("---\n")
+	buf.WriteString(fmt.Sprintf("title: %s\n", article.Title))
+	buf.WriteString(fmt.Sprintf("date: %s\n", article.CreatedAt.Format("2006-01-02 15:04:05")))
+	if article.Tag != "" {
+		buf.WriteString(fmt.Sprintf("tags: [%s]\n", article.Tag))
+	}
+	buf.WriteString("---\n\n")
+	buf.WriteString(article.Content)
+
+	// 准备 multipart form
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+
+	// 添加 data 字段
+	dataJson := map[string]interface{}{
+		"indexing_technique": "high_quality",
+		"process_rule": map[string]interface{}{
+			"rules": map[string]interface{}{
+				"pre_processing_rules": []map[string]interface{}{
+					{"id": "remove_extra_spaces", "enabled": true},
+					{"id": "remove_urls_emails", "enabled": true},
+				},
+				"segmentation": map[string]interface{}{
+					"separator":  "###",
+					"max_tokens": 500,
+				},
+			},
+			"mode": "custom",
+		},
+	}
+	dataField, err := writer.CreateFormField("data")
+	if err != nil {
+		log.Error("Failed to create form field:", err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to create form"})
+	}
+	if err := json.NewEncoder(dataField).Encode(dataJson); err != nil {
+		log.Error("Failed to encode data:", err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to encode data"})
+	}
+
+	// 添加文件
+	fileField, err := writer.CreateFormFile("file", article.Title+".md")
+	if err != nil {
+		log.Error("Failed to create form file:", err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to create form file"})
+	}
+	if _, err := io.Copy(fileField, bytes.NewReader(buf.Bytes())); err != nil {
+		log.Error("Failed to write file content:", err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to write file content"})
+	}
+	writer.Close()
+
+	// 创建请求
+	url := fmt.Sprintf("%s/v1/datasets/%s/document/create-by-file",
+		"http://dify.ooxo.cc",
+		//os.Getenv("DIFY_BASE_URL"),
+		//os.Getenv("DIFY_DATASET_ID"))
+		"d0cb86b7-d79d-4f1c-b434-ce906577d99b")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, "POST", url, body)
+	if err != nil {
+		log.Error("Failed to create request:", err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to create request"})
+	}
+
+	// 设置请求头
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	//req.Header.Set("Authorization", "Bearer "+ os.Getenv("DIFY_API_KEY"))
+	req.Header.Set("Authorization", "Bearer "+"dataset-9gyYzoiNz1DPATdFy60JBVYF")
+
+	// 发送请求
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		log.Error("Failed to send request:", err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to send request"})
+	}
+	defer resp.Body.Close()
+
+	// 读取响应
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		log.Error("Failed to read response:", err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to read response"})
+	}
+
+	// 检查响应状态
+	if resp.StatusCode != http.StatusOK {
+		log.Error("Dify API error:", string(respBody))
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error":    "Dify API error",
+			"response": string(respBody),
+		})
+	}
+
+	// 更新同步状态
+	if err := ah.DB.Save(&article).Error; err != nil {
+		log.Error("Failed to update sync status:", err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to update sync status",
+		})
+	}
+
+	return c.JSON(fiber.Map{
+		"success":  true,
+		"message":  "Article synced to Dify successfully",
+		"response": json.RawMessage(respBody),
+	})
+}
+
+func (ah *ArticleHandler) SyncAllToDify(c *fiber.Ctx) error {
+	// 获取所有文章
+	var articles []models.Article
+	query := ah.DB.Where("is_deleted", false).Where("is_active", true)
+	result := query.Find(&articles)
+	if result.Error != nil {
+		log.Error("Failed to fetch articles:", result.Error)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to fetch articles",
+		})
+	}
+
+	// 创建一个通道来控制并发数量
+	semaphore := make(chan struct{}, 5) // 最多5个并发
+	var wg sync.WaitGroup
+
+	// 创建结果通道
+	type syncResult struct {
+		ID      models.SnowflakeID `json:"id"`
+		Title   string             `json:"title"`
+		Success bool               `json:"success"`
+		Error   string             `json:"error,omitempty"`
+	}
+	results := make(chan syncResult, len(articles))
+
+	// 遍历所有文章进行同步
+	for _, article := range articles {
+		wg.Add(1)
+		go func(article models.Article) {
+			defer wg.Done()
+
+			// 获取信号量
+			semaphore <- struct{}{}
+			defer func() { <-semaphore }()
+
+			// 准备文章内容
+			var buf bytes.Buffer
+			buf.WriteString("---\n")
+			buf.WriteString(fmt.Sprintf("title: %s\n", article.Title))
+			buf.WriteString(fmt.Sprintf("date: %s\n", article.CreatedAt.Format("2006-01-02 15:04:05")))
+			if article.Tag != "" {
+				buf.WriteString(fmt.Sprintf("tags: [%s]\n", article.Tag))
+			}
+			buf.WriteString("---\n\n")
+			buf.WriteString(article.Content)
+
+			// 准备 multipart form
+			body := &bytes.Buffer{}
+			writer := multipart.NewWriter(body)
+
+			// 添加 data 字段
+			dataJson := map[string]interface{}{
+				"indexing_technique": "high_quality",
+				"process_rule": map[string]interface{}{
+					"rules": map[string]interface{}{
+						"pre_processing_rules": []map[string]interface{}{
+							{"id": "remove_extra_spaces", "enabled": true},
+							{"id": "remove_urls_emails", "enabled": true},
+						},
+						"segmentation": map[string]interface{}{
+							"separator":  "###",
+							"max_tokens": 500,
+						},
+					},
+					"mode": "custom",
+				},
+			}
+
+			dataField, err := writer.CreateFormField("data")
+			if err != nil {
+				results <- syncResult{ID: article.ID, Title: article.Title, Success: false, Error: "Failed to create form field"}
+				return
+			}
+			if err := json.NewEncoder(dataField).Encode(dataJson); err != nil {
+				results <- syncResult{ID: article.ID, Title: article.Title, Success: false, Error: "Failed to encode data"}
+				return
+			}
+
+			// 添加文件
+			fileField, err := writer.CreateFormFile("file", article.Title+".md")
+			if err != nil {
+				results <- syncResult{ID: article.ID, Title: article.Title, Success: false, Error: "Failed to create form file"}
+				return
+			}
+			if _, err := io.Copy(fileField, bytes.NewReader(buf.Bytes())); err != nil {
+				results <- syncResult{ID: article.ID, Title: article.Title, Success: false, Error: "Failed to write file content"}
+				return
+			}
+			writer.Close()
+
+			// 创建请求
+			url := fmt.Sprintf("http://dify.ooxo.cc/v1/datasets/%s/document/create-by-file",
+				"d0cb86b7-d79d-4f1c-b434-ce906577d99b")
+
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+
+			req, err := http.NewRequestWithContext(ctx, "POST", url, body)
+			if err != nil {
+				results <- syncResult{ID: article.ID, Title: article.Title, Success: false, Error: "Failed to create request"}
+				return
+			}
+
+			// 设置请求头
+			req.Header.Set("Content-Type", writer.FormDataContentType())
+			req.Header.Set("Authorization", "Bearer dataset-9gyYzoiNz1DPATdFy60JBVYF")
+
+			// 发送请求
+			client := &http.Client{}
+			resp, err := client.Do(req)
+			if err != nil {
+				results <- syncResult{ID: article.ID, Title: article.Title, Success: false, Error: "Failed to send request"}
+				return
+			}
+			defer resp.Body.Close()
+
+			if resp.StatusCode != http.StatusOK {
+				respBody, _ := io.ReadAll(resp.Body)
+				results <- syncResult{ID: article.ID, Title: article.Title, Success: false, Error: fmt.Sprintf("API error: %s", string(respBody))}
+				return
+			}
+
+			if err := ah.DB.Save(&article).Error; err != nil {
+				results <- syncResult{ID: article.ID, Title: article.Title, Success: false, Error: "Failed to update sync status"}
+				return
+			}
+
+			results <- syncResult{ID: article.ID, Title: article.Title, Success: true}
+		}(article)
+	}
+
+	// 等待所有同步完成
+	go func() {
+		wg.Wait()
+		close(results)
+	}()
+
+	// 收集结果
+	var syncResults []syncResult
+	for result := range results {
+		syncResults = append(syncResults, result)
+	}
+
+	// 统计结果
+	successCount := 0
+	failureCount := 0
+	for _, result := range syncResults {
+		if result.Success {
+			successCount++
+		} else {
+			failureCount++
+		}
+	}
+
+	return c.JSON(fiber.Map{
+		"total":   len(articles),
+		"success": successCount,
+		"failure": failureCount,
+		"results": syncResults,
+	})
 }
