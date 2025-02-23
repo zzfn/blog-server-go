@@ -368,15 +368,13 @@ func (ah *ArticleHandler) ExportArticleMarkdown(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Invalid article title"})
 	}
 
-	filename := url.QueryEscape(article.Title)
+	// 处理文件名编码
+	encodedFilename := url.QueryEscape(article.Title + ".md")
 
 	// 设置响应头
-	contentDisposition := fmt.Sprintf("attachment; filename=%s.md", filename)
-	contentType := "text/markdown"
+	c.Response().Header.Set("Content-Type", "application/octet-stream")
+	c.Response().Header.Set("Content-Disposition", fmt.Sprintf("attachment; filename*=UTF-8''%s", encodedFilename))
 
-	// 使用Response().Header来设置响应头
-	c.Response().Header.Set("Content-Disposition", contentDisposition)
-	c.Response().Header.Set("Content-Type", contentType)
-
-	return c.SendString(article.Content)
+	// 返回二进制数据
+	return c.Send([]byte(article.Content))
 }
