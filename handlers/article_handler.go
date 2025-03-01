@@ -13,6 +13,7 @@ import (
 	"mime/multipart"
 	"net/http"
 	"net/url"
+	"os"
 	"strconv"
 	"sync"
 	"time"
@@ -358,7 +359,7 @@ func (ah *ArticleHandler) GetArticleSummary(c *fiber.Ctx) error {
 
 		// 设置请求头
 		req.Header.Set("Content-Type", "application/json")
-		req.Header.Set("Authorization", "Bearer app-fRKeGh0gLYbpIgJw3EUds148") // 应从配置中获取
+		req.Header.Set("Authorization", "Bearer "+os.Getenv("DIFY_API_KEY"))
 
 		// 设置超时
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -547,8 +548,7 @@ func (ah *ArticleHandler) SyncToDify(c *fiber.Ctx) error {
 
 	// 设置请求头
 	req.Header.Set("Content-Type", writer.FormDataContentType())
-	//req.Header.Set("Authorization", "Bearer "+ os.Getenv("DIFY_API_KEY"))
-	req.Header.Set("Authorization", "Bearer "+"dataset-9gyYzoiNz1DPATdFy60JBVYF")
+	req.Header.Set("Authorization", "Bearer "+os.Getenv("DIFY_API_KEY"))
 
 	// 发送请求
 	client := &http.Client{}
@@ -699,7 +699,7 @@ func (ah *ArticleHandler) SyncAllToDify(c *fiber.Ctx) error {
 
 			// 设置请求头
 			req.Header.Set("Content-Type", writer.FormDataContentType())
-			req.Header.Set("Authorization", "Bearer dataset-9gyYzoiNz1DPATdFy60JBVYF")
+			req.Header.Set("Authorization", "Bearer "+os.Getenv("DIFY_API_KEY"))
 
 			// 发送请求
 			client := &http.Client{}
