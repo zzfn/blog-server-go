@@ -328,10 +328,90 @@ func (ah *ArticleHandler) GetArticleSummary(c *fiber.Ctx) error {
 	var ctx = context.Background()
 	summary, _ := ah.Redis.HGet(ctx, "articleSummary", id).Result()
 
-	return c.JSON(summary)
+	// 如果 summary 为空，则调用 Dify API 生成
+	if summary == "" {
+		var article models.Article
+		result := ah.DB.Take(&article, id)
+		if result.Error != nil {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Article not found"})
+		}
+
+		// 准备请求体
+		reqBody := map[string]interface{}{
+			"inputs": map[string]string{
+				"blog_content": article.Content,
+			},
+			"response_mode": "blocking",
+			"user":          "system",
+		}
+
+		jsonBody, err := json.Marshal(reqBody)
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to prepare request"})
+		}
+
+		// 创建请求
+		req, err := http.NewRequest("POST", "https://dify.zzfzzf.com/v1/workflows/run", bytes.NewBuffer(jsonBody))
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to create request"})
+		}
+
+		// 设置请求头
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Authorization", "Bearer app-fRKeGh0gLYbpIgJw3EUds148") // 应从配置中获取
+
+		// 设置超时
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		req = req.WithContext(ctx)
+
+		// 发送请求
+		client := &http.Client{}
+		resp, err := client.Do(req)
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to call Dify API"})
+		}
+		defer resp.Body.Close()
+
+		// 读取响应内容
+		respBody, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to read response"})
+		}
+		log.Error("Dify API Response:", string(respBody))
+
+		// 重新创建reader供后续使用
+		resp.Body = io.NopCloser(bytes.NewBuffer(respBody))
+
+		// 检查响应状态
+		if resp.StatusCode != http.StatusOK {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Dify API error"})
+		}
+
+		// 解析响应
+		var difyResult map[string]interface{}
+		if err := json.NewDecoder(resp.Body).Decode(&difyResult); err != nil {
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to parse response"})
+		}
+
+		// 提取摘要并保存到 Redis
+		if data, ok := difyResult["data"].(map[string]interface{}); ok {
+			if outputs, ok := data["outputs"].(map[string]interface{}); ok {
+				if text, ok := outputs["text"].(string); ok {
+					summary = text
+					err = ah.Redis.HSet(ctx, "articleSummary", id, summary).Err()
+					if err != nil {
+						log.Error("Failed to save summary to Redis:", err)
+					}
+				}
+			}
+		}
+	}
+
+	return c.JSON(fiber.Map{"summary": summary})
 }
 
-func (ah *ArticleHandler) UpdateArticleComments(c *fiber.Ctx) error {
+func (ah *ArticleHandler) UpdateArticleSummary(c *fiber.Ctx) error {
 	// 解析入参 summary 存入redis
 	// 入参 {summary:"xxxxxx"}
 	id := c.Params("id")
@@ -486,9 +566,13 @@ func (ah *ArticleHandler) SyncToDify(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to read response"})
 	}
 
+	log.Error("Dify API Response:", string(respBody))
+
+	// 重新创建reader供后续使用
+	resp.Body = io.NopCloser(bytes.NewBuffer(respBody))
+
 	// 检查响应状态
 	if resp.StatusCode != http.StatusOK {
-		log.Error("Dify API error:", string(respBody))
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
 			"error":    "Dify API error",
 			"response": string(respBody),

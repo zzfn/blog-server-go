@@ -35,7 +35,7 @@ func SetupRoutes(app *fiber.App, h *Handlers) {
 	articles.Put("/:id/views", h.ArticleHandler.UpdateArticleViews)
 	// 摘要
 	articles.Get("/summary/:id", h.ArticleHandler.GetArticleSummary)
-	articles.Post("/summary/:id", h.ArticleHandler.UpdateArticleComments)
+	articles.Post("/summary/:id", h.ArticleHandler.UpdateArticleSummary)
 	articles.Get("/export/markdown/:id", h.ArticleHandler.ExportArticleMarkdown)
 	articles.Get("/sync2dify/:id", h.ArticleHandler.SyncToDify)
 	articles.Get("/sync/all2Dify", h.ArticleHandler.SyncAllToDify)
