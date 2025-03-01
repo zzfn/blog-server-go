@@ -409,7 +409,7 @@ func (ah *ArticleHandler) GetArticleSummary(c *fiber.Ctx) error {
 		}
 	}
 
-	return c.JSON(fiber.Map{"summary": summary})
+	return c.JSON(summary)
 }
 
 func (ah *ArticleHandler) UpdateArticleSummary(c *fiber.Ctx) error {
