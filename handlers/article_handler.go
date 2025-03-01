@@ -352,7 +352,7 @@ func (ah *ArticleHandler) GetArticleSummary(c *fiber.Ctx) error {
 		}
 
 		// 创建请求
-		req, err := http.NewRequest("POST", "https://dify.zzfzzf.com/v1/workflows/run", bytes.NewBuffer(jsonBody))
+		req, err := http.NewRequest("POST", os.Getenv("DIFY_WORKFLOW_URL"), bytes.NewBuffer(jsonBody))
 		if err != nil {
 			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to create request"})
 		}
