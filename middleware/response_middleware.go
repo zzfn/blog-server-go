@@ -4,9 +4,9 @@ import (
 	"blog-server-go/common"
 	"encoding/json"
 	"errors"
+	"github.com/gofiber/fiber/v2"
 	"strings"
 
-	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/log"
 )
 

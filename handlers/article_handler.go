@@ -494,6 +494,11 @@ func (ah *ArticleHandler) SyncToDify(c *fiber.Ctx) error {
 	// 添加 data 字段
 	dataJson := map[string]interface{}{
 		"indexing_technique": "high_quality",
+		"doc_type":           "web_page",
+		"doc_metadata": map[string]interface{}{
+			"title": article.Title,
+			"url":   id,
+		},
 		"process_rule": map[string]interface{}{
 			"rules": map[string]interface{}{
 				"pre_processing_rules": []map[string]interface{}{
@@ -533,7 +538,7 @@ func (ah *ArticleHandler) SyncToDify(c *fiber.Ctx) error {
 	// 创建请求
 	url := fmt.Sprintf("%s/v1/datasets/%s/document/create-by-file",
 		"http://dify.ooxo.cc",
-		//os.Getenv("DIFY_BASE_URL"),
+		//os.Getenv("DIFY_BASE_URL"),=\[[[[
 		//os.Getenv("DIFY_DATASET_ID"))
 		"d0cb86b7-d79d-4f1c-b434-ce906577d99b")
 
@@ -647,6 +652,11 @@ func (ah *ArticleHandler) SyncAllToDify(c *fiber.Ctx) error {
 			// 添加 data 字段
 			dataJson := map[string]interface{}{
 				"indexing_technique": "high_quality",
+				"doc_type":           "web_page",
+				"doc_metadata": map[string]interface{}{
+					"title": article.Title,
+					"url":   article.ID,
+				},
 				"process_rule": map[string]interface{}{
 					"rules": map[string]interface{}{
 						"pre_processing_rules": []map[string]interface{}{
@@ -699,7 +709,7 @@ func (ah *ArticleHandler) SyncAllToDify(c *fiber.Ctx) error {
 
 			// 设置请求头
 			req.Header.Set("Content-Type", writer.FormDataContentType())
-			req.Header.Set("Authorization", "Bearer "+os.Getenv("DIFY_API_KEY"))
+			req.Header.Set("Authorization", "Bearer dataset-9gyYzoiNz1DPATdFy60JBVYF")
 
 			// 发送请求
 			client := &http.Client{}
