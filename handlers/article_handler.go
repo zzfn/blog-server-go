@@ -67,6 +67,15 @@ func (ah *ArticleHandler) GetArticles(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).SendString(result.Error.Error())
 	}
 
+	// 从Redis获取所有文章的summary
+	var ctx = context.Background()
+	allSummaries, _ := ah.Redis.HGetAll(ctx, "articleSummary").Result()
+
+	// 为每篇文章设置summary
+	for i := range articles {
+		articles[i].Summary = allSummaries[string(articles[i].ID)]
+	}
+
 	return c.JSON(articles)
 }
 
@@ -78,9 +87,15 @@ func (ah *ArticleHandler) GetArticleByID(c *fiber.Ctx) error {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			return c.Status(404).JSON(fiber.Map{"error": "Article not found"})
 		}
-		log.Errorf("Failed to retrieve article: %v", result.Error) // 使用你的日志库记录错误
+		log.Errorf("Failed to retrieve article: %v", result.Error)
 		return c.Status(500).JSON(fiber.Map{"error": "Internal Server Error"})
 	}
+
+	// 从Redis获取summary
+	var ctx = context.Background()
+	summary, _ := ah.Redis.HGet(ctx, "articleSummary", id).Result()
+	article.Summary = summary
+
 	return c.JSON(article)
 }
 

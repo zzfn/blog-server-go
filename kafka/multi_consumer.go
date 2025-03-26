@@ -3,10 +3,13 @@ package kafka
 import (
 	"bytes"
 	"fmt"
-	"github.com/gofiber/fiber/v2/log"
 	"io"
 	"net/http"
 	"os"
+
+	"github.com/gofiber/fiber/v2/log"
+	"github.com/redis/go-redis/v9"
+	"gorm.io/gorm"
 )
 
 func SendRequest(client *http.Client, apiPath string, requestData []byte) ([]byte, error) {
@@ -33,10 +36,10 @@ func SendRequest(client *http.Client, apiPath string, requestData []byte) ([]byt
 	return body, nil
 }
 
-func CreateMultiConsumer(topicHandlers map[string]MessageHandlerFunc) []*Consumer {
+func CreateMultiConsumer(topicHandlers map[string]MessageHandlerFunc, db *gorm.DB, redis *redis.Client) []*Consumer {
 	var consumers []*Consumer
 	for topic, handler := range topicHandlers {
-		consumer := NewConsumer(topic)
+		consumer := NewConsumer(topic, db, redis)
 		consumer.handler = handler
 		consumers = append(consumers, consumer)
 	}

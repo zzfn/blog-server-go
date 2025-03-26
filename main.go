@@ -9,15 +9,16 @@ import (
 	"blog-server-go/routes"
 	"blog-server-go/tasks"
 	"database/sql"
+	"os"
+	"os/signal"
+	"syscall"
+
 	"github.com/elastic/go-elasticsearch/v8"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/log"
 	"github.com/gofiber/fiber/v2/middleware/cors"
 	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
-	"os"
-	"os/signal"
-	"syscall"
 )
 
 func StartServices(app *fiber.App, kafkaConsumer []*kafka.Consumer) {
@@ -139,7 +140,7 @@ func main() {
 		kafka.RevalidateUpdateTopic: kafka.RevalidateHandler,
 	}
 	// 初始化Kafka消费者
-	kafkaConsumer := kafka.CreateMultiConsumer(topicHandlers)
+	kafkaConsumer := kafka.CreateMultiConsumer(topicHandlers, db, redisClient)
 
 	// 注册路由
 	RegisterRoutes(app, baseHandler)

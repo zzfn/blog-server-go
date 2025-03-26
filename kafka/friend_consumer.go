@@ -2,14 +2,17 @@ package kafka
 
 import (
 	"fmt"
-	"github.com/gofiber/fiber/v2/log"
-	"github.com/segmentio/kafka-go"
 	"net/http"
 	"os"
 	"time"
+
+	"github.com/gofiber/fiber/v2/log"
+	"github.com/redis/go-redis/v9"
+	"github.com/segmentio/kafka-go"
+	"gorm.io/gorm"
 )
 
-func FriendHandler(msg kafka.Message) {
+func FriendHandler(msg kafka.Message, db *gorm.DB, redis *redis.Client) {
 	fmt.Printf("Processing friend update: %s = %s\n", string(msg.Key), string(msg.Value))
 	httpClient := &http.Client{Timeout: 10 * time.Second} // defining the http client here
 	secret := os.Getenv("NEXT_SECRET")
