@@ -8,14 +8,15 @@ import (
 )
 
 type Handlers struct {
-	ArticleHandler    handlers.ArticleHandler
-	CommentsHandler   handlers.CommentsHandler
-	WebSocketHandler  handlers.WebSocketHandler
-	FriendLinkHandler handlers.FriendLinksHandler
-	AppUserHandler    handlers.AppUserHandler
-	FileHandler       handlers.FileHandler
-	BlogConfigHandler handlers.BlogConfigHandler
-	TaskHandler       handlers.TaskHandler
+	ArticleHandler              handlers.ArticleHandler
+	CommentsHandler             handlers.CommentsHandler
+	WebSocketHandler            handlers.WebSocketHandler
+	FriendLinkHandler           handlers.FriendLinksHandler
+	AppUserHandler              handlers.AppUserHandler
+	FileHandler                 handlers.FileHandler
+	BlogConfigHandler           handlers.BlogConfigHandler
+	TaskHandler                 handlers.TaskHandler
+	FinancialTransactionHandler handlers.FinancialTransactionHandler
 }
 
 func SetupRoutes(app *fiber.App, h *Handlers) {
@@ -72,4 +73,13 @@ func SetupRoutes(app *fiber.App, h *Handlers) {
 	task.Post("/", h.TaskHandler.SaveTaskList)
 	task.Put("/", h.TaskHandler.UpdateTaskList)
 	task.Delete("/:id", h.TaskHandler.DeleteTask)
+
+	// 理财交易流水
+	transactions := v1.Group("/transactions")
+	transactions.Get("/", h.FinancialTransactionHandler.GetTransactions)
+	transactions.Post("/", h.FinancialTransactionHandler.CreateTransaction)
+	transactions.Get("/:id", h.FinancialTransactionHandler.GetTransactionByID)
+	transactions.Put("/", h.FinancialTransactionHandler.UpdateTransaction)
+	transactions.Delete("/:id", h.FinancialTransactionHandler.DeleteTransaction)
+	transactions.Get("/account/:accountId", h.FinancialTransactionHandler.GetTransactionsByAccount)
 }
