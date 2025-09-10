@@ -47,11 +47,14 @@ func ArticleHandler(msg kafka.Message, db *gorm.DB, redis *redis.Client) {
 
 	// 准备请求体
 	reqBody := map[string]interface{}{
-		"inputs": map[string]string{
-			"blog_content": article.Content,
+		"model": "google/gemini-2.5-flash",
+		"messages": []map[string]interface{}{
+			{
+				"role":    "user",
+				"content": fmt.Sprintf("请为以下文章生成一段简洁的摘要，以平均阅读速度300字/分钟为基准，根据摘要字数计算预计阅读时间,将摘要与阅读时间合并为一段，格式为\"[摘要内容]（预计阅读时间：X分钟）\",控制在100字以内：\n\n%s", article.Content),
+			},
 		},
-		"response_mode": "blocking",
-		"user":          "system",
+		"max_tokens": 150,
 	}
 
 	jsonBody, err := json.Marshal(reqBody)
@@ -61,14 +64,16 @@ func ArticleHandler(msg kafka.Message, db *gorm.DB, redis *redis.Client) {
 	}
 
 	// 创建请求
-	req, err := http.NewRequest("POST", os.Getenv("DIFY_WORKFLOW_URL"), bytes.NewBuffer(jsonBody))
+	req, err := http.NewRequest("POST", "https://openrouter.ai/api/v1/chat/completions", bytes.NewBuffer(jsonBody))
 	if err != nil {
 		log.Error("Error creating request:", err)
 	}
 
 	// 设置请求头
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", "Bearer "+os.Getenv("DIFY_API_KEY"))
+	req.Header.Set("Authorization", "Bearer "+os.Getenv("OPENROUTER_API_KEY"))
+	req.Header.Set("HTTP-Referer", "https://zzfzzf.com")
+	req.Header.Set("X-Title", "Blog Article Summarizer")
 
 	// 设置超时
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -79,7 +84,7 @@ func ArticleHandler(msg kafka.Message, db *gorm.DB, redis *redis.Client) {
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		log.Error("Error calling Dify API:", err)
+		log.Error("Error calling OpenRouter API:", err)
 	}
 	defer resp.Body.Close()
 
@@ -89,30 +94,31 @@ func ArticleHandler(msg kafka.Message, db *gorm.DB, redis *redis.Client) {
 	if err != nil {
 		log.Error("Error reading response:", err)
 	}
-	log.Error("Dify API Response:", string(respBody))
-
-	// 重新创建reader供后续使用
-	resp.Body = io.NopCloser(bytes.NewBuffer(respBody))
+	log.Error("OpenRouter API Response:", string(respBody))
 
 	// 检查响应状态
 	if resp.StatusCode != http.StatusOK {
-		log.Error("Dify API error")
+		log.Error("OpenRouter API error")
+		return
 	}
 
 	// 解析响应
-	var difyResult map[string]interface{}
-	if err := json.NewDecoder(resp.Body).Decode(&difyResult); err != nil {
+	var openrouterResult map[string]interface{}
+	if err := json.NewDecoder(bytes.NewReader(respBody)).Decode(&openrouterResult); err != nil {
 		log.Error("Failed to parse response")
+		return
 	}
 
 	// 提取摘要并保存到 Redis
-	if data, ok := difyResult["data"].(map[string]interface{}); ok {
-		if outputs, ok := data["outputs"].(map[string]interface{}); ok {
-			if text, ok := outputs["text"].(string); ok {
-				log.Info("Dify API Response:", text)
-				err = redis.HSet(ctx, "articleSummary", id, text).Err()
-				if err != nil {
-					log.Error("Failed to save summary to Redis:", err)
+	if choices, ok := openrouterResult["choices"].([]interface{}); ok && len(choices) > 0 {
+		if choice, ok := choices[0].(map[string]interface{}); ok {
+			if message, ok := choice["message"].(map[string]interface{}); ok {
+				if content, ok := message["content"].(string); ok {
+					log.Info("OpenRouter API Response:", content)
+					err = redis.HSet(ctx, "articleSummary", id, content).Err()
+					if err != nil {
+						log.Error("Failed to save summary to Redis:", err)
+					}
 				}
 			}
 		}
