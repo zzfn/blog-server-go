@@ -3,6 +3,12 @@ package config
 import (
 	"context"
 	"fmt"
+	"io"
+	"log"
+	"os"
+	"strconv"
+	"time"
+
 	"github.com/elastic/go-elasticsearch/v8"
 	fiberlog "github.com/gofiber/fiber/v2/log"
 	"github.com/redis/go-redis/v9"
@@ -10,11 +16,6 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 	"gorm.io/gorm/schema"
-	"io"
-	"log"
-	"os"
-	"strconv"
-	"time"
 )
 
 func SetupDatabase() (*gorm.DB, error) {
