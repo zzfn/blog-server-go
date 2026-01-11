@@ -49,6 +49,7 @@ func ShutdownServices(app *fiber.App, sqlDB *sql.DB, redisClient *redis.Client, 
 func NewFiberApp() *fiber.App {
 	app := fiber.New(fiber.Config{BodyLimit: 20 * 1024 * 1024})
 	app.Use(cors.New())
+	app.Use(middleware.LatencyMiddleware)
 	app.Use(middleware.LoggingMiddleware)
 	app.Use(middleware.AuthMiddleware)
 	app.Use(middleware.ResponseMiddleware)
