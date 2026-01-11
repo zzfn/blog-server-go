@@ -17,6 +17,7 @@ type Handlers struct {
 	BlogConfigHandler           handlers.BlogConfigHandler
 	TaskHandler                 handlers.TaskHandler
 	FinancialTransactionHandler handlers.FinancialTransactionHandler
+	StatsHandler                handlers.StatsHandler
 }
 
 func SetupRoutes(app *fiber.App, h *Handlers) {
@@ -82,4 +83,8 @@ func SetupRoutes(app *fiber.App, h *Handlers) {
 	transactions.Put("/", h.FinancialTransactionHandler.UpdateTransaction)
 	transactions.Delete("/:id", h.FinancialTransactionHandler.DeleteTransaction)
 	transactions.Get("/account/:accountId", h.FinancialTransactionHandler.GetTransactionsByAccount)
+
+	// 统计概览
+	stats := v1.Group("/stats")
+	stats.Get("/overview", h.StatsHandler.GetOverview)
 }

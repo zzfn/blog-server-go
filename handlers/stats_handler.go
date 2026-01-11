@@ -1,0 +1,183 @@
+package handlers
+
+import (
+	"blog-server-go/models"
+	"context"
+	"fmt"
+	"runtime"
+	"runtime/debug"
+	"time"
+
+	"github.com/gofiber/fiber/v2"
+)
+
+type StatsHandler struct {
+	BaseHandler
+}
+
+// StatsOverview 统计概览响应结构
+type StatsOverview struct {
+	BasicStats    BasicStats    `json:"basicStats"`
+	ServiceInfo   ServiceInfo   `json:"serviceInfo"`
+	CacheInfo     CacheInfo     `json:"cacheInfo"`
+	PerformanceInfo PerformanceInfo `json:"performanceInfo"`
+}
+
+// BasicStats 基础统计
+type BasicStats struct {
+	OnlineUsers  int64 `json:"onlineUsers"`
+	TotalViews   int64 `json:"totalViews"`
+}
+
+// ServiceInfo 服务信息
+type ServiceInfo struct {
+	Status        string `json:"status"`
+	Version       string `json:"version"`
+	GoVersion     string `json:"goVersion"`
+	KernelVersion string `json:"kernelVersion"`
+}
+
+// CacheInfo 缓存信息
+type CacheInfo struct {
+	Status       string `json:"status"`
+	Latency      string `json:"latency"`
+	CachedKeys   int64  `json:"cachedKeys"`
+	CacheBackend string `json:"cacheBackend"`
+}
+
+// PerformanceInfo 性能信息
+type PerformanceInfo struct {
+	MemoryUsage      string `json:"memoryUsage"`
+	Goroutines       int    `json:"goroutines"`
+	GCSTWTime        string `json:"gcstwTime"`
+	AverageLatency   string `json:"averageLatency"`
+}
+
+// GetOverview 获取统计概览
+func (sh *StatsHandler) GetOverview(c *fiber.Ctx) error {
+	ctx := context.Background()
+
+	// 并发获取各项统计数据
+	basicStats := sh.getBasicStats(ctx)
+	serviceInfo := sh.getServiceInfo()
+	cacheInfo := sh.getCacheInfo(ctx)
+	performanceInfo := sh.getPerformanceInfo()
+
+	overview := StatsOverview{
+		BasicStats:      basicStats,
+		ServiceInfo:     serviceInfo,
+		CacheInfo:       cacheInfo,
+		PerformanceInfo: performanceInfo,
+	}
+
+	return c.JSON(overview)
+}
+
+// getBasicStats 获取基础统计数据
+func (sh *StatsHandler) getBasicStats(ctx context.Context) BasicStats {
+	// 获取在线人数
+	onlineUsers, _ := sh.Redis.ZCard(ctx, "online_users").Result()
+
+	// 获取总阅读数
+	var totalViews int64
+	sh.DB.Model(&models.Article{}).Select("COALESCE(SUM(view_count), 0)").Scan(&totalViews)
+
+	return BasicStats{
+		OnlineUsers: onlineUsers,
+		TotalViews:  totalViews,
+	}
+}
+
+// getServiceInfo 获取服务信息
+func (sh *StatsHandler) getServiceInfo() ServiceInfo {
+	// 检查服务状态（数据库连接）
+	status := "正常"
+	if sqlDB, err := sh.DB.DB(); err != nil || sqlDB.Ping() != nil {
+		status = "异常"
+	}
+
+	// 获取 Go 版本
+	goVersion := runtime.Version()
+
+	return ServiceInfo{
+		Status:        status,
+		Version:       "1.0.0", // 可以从 git tag 或构建信息获取
+		GoVersion:     goVersion,
+		KernelVersion: getKernelVersion(),
+	}
+}
+
+// getCacheInfo 获取缓存信息
+func (sh *StatsHandler) getCacheInfo(ctx context.Context) CacheInfo {
+	// 测量 Redis 延迟
+	start := time.Now()
+	_, err := sh.Redis.Ping(ctx).Result()
+	latency := time.Since(start).Milliseconds()
+
+	status := "正常"
+	if err != nil {
+		status = "异常"
+	}
+
+	// 获取缓存 key 数量
+	var cachedKeys int64
+	for _, pattern := range []string{"article*", "online*", "session*"} {
+		keys, _ := sh.Redis.Keys(ctx, pattern).Result()
+		cachedKeys += int64(len(keys))
+	}
+
+	return CacheInfo{
+		Status:       status,
+		Latency:      formatDuration(latency),
+		CachedKeys:   cachedKeys,
+		CacheBackend: "Redis",
+	}
+}
+
+// getPerformanceInfo 获取性能信息
+func (sh *StatsHandler) getPerformanceInfo() PerformanceInfo {
+	// 获取内存信息
+	var m runtime.MemStats
+	runtime.ReadMemStats(&m)
+	memoryUsage := formatBytes(m.Alloc)
+
+	// 获取 Goroutine 数量
+	goroutines := runtime.NumGoroutine()
+
+	// 获取 GC 信息
+	var gcStats debug.GCStats
+	debug.ReadGCStats(&gcStats)
+	gcSTWTime := formatDuration(gcStats.PauseTotal.Nanoseconds() / 1e6)
+
+	return PerformanceInfo{
+		MemoryUsage:    memoryUsage,
+		Goroutines:     goroutines,
+		GCSTWTime:      gcSTWTime,
+		AverageLatency: "计算中...", // 可基于请求日志计算
+	}
+}
+
+// formatBytes 格式化字节数
+func formatBytes(b uint64) string {
+	const unit = 1024
+	if b < unit {
+		return "< 1KB"
+	}
+	div, exp := uint64(unit), 0
+	for n := b / unit; n >= unit; n /= unit {
+		div *= unit
+		exp++
+	}
+	units := []string{"KB", "MB", "GB", "TB"}
+	return fmt.Sprintf("%d %s", b/div, units[exp])
+}
+
+// formatDuration 格式化时长
+func formatDuration(ms int64) string {
+	return fmt.Sprintf("%dms", ms)
+}
+
+// getKernelVersion 获取内核版本（简化版）
+func getKernelVersion() string {
+	return "Linux" // 或通过执行 uname 命令获取
+}

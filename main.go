@@ -93,6 +93,7 @@ func RegisterRoutes(app *fiber.App, baseHandler handlers.BaseHandler) {
 	blogConfigHandler := handlers.BlogConfigHandler{BaseHandler: baseHandler}
 	taskHandler := handlers.TaskHandler{BaseHandler: baseHandler}
 	financialTransactionHandler := handlers.FinancialTransactionHandler{BaseHandler: baseHandler}
+	statsHandler := handlers.StatsHandler{BaseHandler: baseHandler}
 	allHandlers := &routes.Handlers{
 		ArticleHandler:              articleHandler,
 		CommentsHandler:             commentsHandler,
@@ -102,6 +103,7 @@ func RegisterRoutes(app *fiber.App, baseHandler handlers.BaseHandler) {
 		BlogConfigHandler:           blogConfigHandler,
 		TaskHandler:                 taskHandler,
 		FinancialTransactionHandler: financialTransactionHandler,
+		StatsHandler:                statsHandler,
 	}
 	routes.SetupRoutes(app, allHandlers)
 }
