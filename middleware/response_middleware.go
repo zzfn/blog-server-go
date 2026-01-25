@@ -16,7 +16,7 @@ func ResponseMiddleware(c *fiber.Ctx) error {
 		return c.Next()
 	}
 	//检查是否是下载的响应
-	if strings.Contains(c.Path(), "/export/markdown/") {
+	if strings.Contains(c.Path(), "/export/") {
 		return c.Next()
 	}
 	// 先调用下一个中间件或路由处理函数

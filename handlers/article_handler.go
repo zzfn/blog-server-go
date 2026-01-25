@@ -4,6 +4,7 @@ import (
 	"blog-server-go/common"
 	"blog-server-go/kafka"
 	"blog-server-go/models"
+	"archive/zip"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -480,6 +481,64 @@ func (ah *ArticleHandler) ExportArticleMarkdown(c *fiber.Ctx) error {
 
 	// 返回二进制数据
 	return c.Send([]byte(article.Content))
+}
+
+// ExportAllArticlesMarkdown handles exporting all articles as a zip file
+func (ah *ArticleHandler) ExportAllArticlesMarkdown(c *fiber.Ctx) error {
+	var articles []models.Article
+	result := ah.DB.Find(&articles)
+	if result.Error != nil {
+		log.Error("Database error:", result.Error)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to retrieve articles"})
+	}
+
+	if len(articles) == 0 {
+		return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "No articles found"})
+	}
+
+	// 创建一个内存中的 zip 文件
+	var zipBuffer bytes.Buffer
+	zipWriter := zip.NewWriter(&zipBuffer)
+
+	// 将每篇文章添加到 zip 文件中
+	for _, article := range articles {
+		// 处理文件名
+		filename := article.Title
+		if filename == "" {
+			filename = fmt.Sprintf("article_%d", article.ID)
+		}
+		filename = filename + ".md"
+
+		// 创建 zip 文件中的文件
+		writer, err := zipWriter.Create(filename)
+		if err != nil {
+			log.Error("Error creating zip entry:", err)
+			zipWriter.Close()
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to create zip file"})
+		}
+
+		// 写入文章内容
+		_, err = writer.Write([]byte(article.Content))
+		if err != nil {
+			log.Error("Error writing to zip:", err)
+			zipWriter.Close()
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to write to zip file"})
+		}
+	}
+
+	// 关闭 zip writer
+	err := zipWriter.Close()
+	if err != nil {
+		log.Error("Error closing zip writer:", err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to close zip file"})
+	}
+
+	// 设置响应头
+	c.Response().Header.Set("Content-Type", "application/zip")
+	c.Response().Header.Set("Content-Disposition", "attachment; filename*=UTF-8''articles.zip")
+
+	// 返回 zip 文件
+	return c.Send(zipBuffer.Bytes())
 }
 
 func (ah *ArticleHandler) SyncToDify(c *fiber.Ctx) error {
