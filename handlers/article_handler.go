@@ -135,7 +135,7 @@ func (ah *ArticleHandler) CreateArticle(c *fiber.Ctx) error {
 		}
 	}
 
-	result := ah.DB.Create(&article)
+	result := ah.DB.Omit("embedding").Create(&article)
 	if result.Error != nil {
 		log.Errorf("Failed to save article: %v", result.Error) // 使用你的日志库记录错误
 		return c.Status(500).JSON(fiber.Map{"error": "Internal Server Error"})
