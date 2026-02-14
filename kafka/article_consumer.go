@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/gofiber/fiber/v2/log"
+	"github.com/pgvector/pgvector-go"
 	"github.com/redis/go-redis/v9"
 	"github.com/segmentio/kafka-go"
 	"gorm.io/gorm"
@@ -64,7 +65,7 @@ func ArticleHandler(msg kafka.Message, db *gorm.DB, redis *redis.Client) {
 	}
 
 	// 创建请求
-	req, err := http.NewRequest("POST", "https://openrouter.ai/api/v1/chat/completions", bytes.NewBuffer(jsonBody))
+	req, err := http.NewRequest("POST", "https://llm.ooxo.cc/v1/chat/completions", bytes.NewBuffer(jsonBody))
 	if err != nil {
 		log.Error("Error creating request:", err)
 	}
@@ -84,7 +85,7 @@ func ArticleHandler(msg kafka.Message, db *gorm.DB, redis *redis.Client) {
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		log.Error("Error calling OpenRouter API:", err)
+		log.Error("Error calling LLM API:", err)
 	}
 	defer resp.Body.Close()
 
@@ -94,27 +95,27 @@ func ArticleHandler(msg kafka.Message, db *gorm.DB, redis *redis.Client) {
 	if err != nil {
 		log.Error("Error reading response:", err)
 	}
-	log.Error("OpenRouter API Response:", string(respBody))
+	log.Error("LLM API Response:", string(respBody))
 
 	// 检查响应状态
 	if resp.StatusCode != http.StatusOK {
-		log.Error("OpenRouter API error")
+		log.Error("LLM API error")
 		return
 	}
 
 	// 解析响应
-	var openrouterResult map[string]interface{}
-	if err := json.NewDecoder(bytes.NewReader(respBody)).Decode(&openrouterResult); err != nil {
+	var llmResult map[string]interface{}
+	if err := json.NewDecoder(bytes.NewReader(respBody)).Decode(&llmResult); err != nil {
 		log.Error("Failed to parse response")
 		return
 	}
 
 	// 提取摘要并保存到 Redis
-	if choices, ok := openrouterResult["choices"].([]interface{}); ok && len(choices) > 0 {
+	if choices, ok := llmResult["choices"].([]interface{}); ok && len(choices) > 0 {
 		if choice, ok := choices[0].(map[string]interface{}); ok {
 			if message, ok := choice["message"].(map[string]interface{}); ok {
 				if content, ok := message["content"].(string); ok {
-					log.Info("OpenRouter API Response:", content)
+					log.Info("LLM API Response:", content)
 					err = redis.HSet(ctx, "articleSummary", id, content).Err()
 					if err != nil {
 						log.Error("Failed to save summary to Redis:", err)
@@ -123,4 +124,78 @@ func ArticleHandler(msg kafka.Message, db *gorm.DB, redis *redis.Client) {
 			}
 		}
 	}
+
+	// 生成向量并保存
+	text := article.Title
+	if article.Content != "" {
+		text = fmt.Sprintf("标题：%s\n内容：%s", article.Title, article.Content)
+	} else if article.Summary != "" {
+		text = fmt.Sprintf("标题：%s\n摘要：%s", article.Title, article.Summary)
+	}
+
+	embedding, err := generateEmbedding(text)
+	if err != nil {
+		log.Error("Failed to generate embedding:", err)
+		return
+	}
+
+	// 保存向量到数据库
+	vectorStr := pgvector.NewVector(embedding).String()
+	if err := db.Exec("UPDATE article SET embedding = ? WHERE id = ?", vectorStr, article.ID).Error; err != nil {
+		log.Error("Failed to save embedding:", err)
+		return
+	}
+
+	log.Info("Article vectorized successfully:", id)
+}
+
+// generateEmbedding 生成文章向量
+func generateEmbedding(text string) ([]float32, error) {
+	reqBody := map[string]interface{}{
+		"model": "text-embedding-v3",
+		"input": []string{text},
+	}
+
+	jsonBody, err := json.Marshal(reqBody)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal request: %w", err)
+	}
+
+	req, err := http.NewRequest("POST", "http://embed.ooxo.cc/v1/embeddings", bytes.NewBuffer(jsonBody))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	req = req.WithContext(ctx)
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to send request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		respBody, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("API error: %s", string(respBody))
+	}
+
+	var result struct {
+		Data []struct {
+			Embedding []float32 `json:"embedding"`
+		} `json:"data"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("failed to parse response: %w", err)
+	}
+
+	if len(result.Data) == 0 {
+		return nil, fmt.Errorf("no embedding returned")
+	}
+
+	return result.Data[0].Embedding, nil
 }

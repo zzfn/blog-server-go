@@ -42,6 +42,11 @@ func SetupRoutes(app *fiber.App, h *Handlers) {
 	articles.Get("/export/all/markdown", h.ArticleHandler.ExportAllArticlesMarkdown)
 	articles.Get("/sync2dify/:id", h.ArticleHandler.SyncToDify)
 	articles.Get("/sync/all2Dify", h.ArticleHandler.SyncAllToDify)
+	// 向量化
+	articles.Post("/vectorize/all", middleware.AdminMiddleware(), h.ArticleHandler.VectorizeAllArticles)
+	articles.Post("/vectorize/:id", middleware.AdminMiddleware(), h.ArticleHandler.VectorizeArticle)
+	// RAG 问答
+	articles.Post("/rag/question", h.ArticleHandler.RAGQuestion)
 
 	// Comments
 	comments := v1.Group("/comments")

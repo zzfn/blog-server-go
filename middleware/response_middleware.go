@@ -19,6 +19,10 @@ func ResponseMiddleware(c *fiber.Ctx) error {
 	if strings.Contains(c.Path(), "/export/") {
 		return c.Next()
 	}
+	// 检查是否是 SSE 流式响应
+	if strings.Contains(c.Path(), "/rag/question") {
+		return c.Next()
+	}
 	// 先调用下一个中间件或路由处理函数
 	if err := c.Next(); err != nil {
 		var be *common.BusinessException

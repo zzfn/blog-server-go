@@ -7,6 +7,7 @@ import (
 	"blog-server-go/kafka"
 	"blog-server-go/middleware"
 	"blog-server-go/routes"
+	"blog-server-go/services"
 	"blog-server-go/tasks"
 	"database/sql"
 	"os"
@@ -86,7 +87,10 @@ func NewBaseHandler(db *gorm.DB, redisClient *redis.Client, esClient *elasticsea
 }
 
 func RegisterRoutes(app *fiber.App, baseHandler handlers.BaseHandler) {
-	articleHandler := handlers.ArticleHandler{BaseHandler: baseHandler}
+	// 初始化 LLM 服务
+	llmService := services.NewLLMService()
+
+	articleHandler := handlers.ArticleHandler{BaseHandler: baseHandler, LLMService: llmService}
 	commentsHandler := handlers.CommentsHandler{BaseHandler: baseHandler}
 	appUserHandler := handlers.AppUserHandler{BaseHandler: baseHandler}
 	webSocketHandler := handlers.WebSocketHandler{BaseHandler: baseHandler}

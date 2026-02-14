@@ -1,10 +1,11 @@
 package handlers
 
 import (
+	"archive/zip"
 	"blog-server-go/common"
 	"blog-server-go/kafka"
 	"blog-server-go/models"
-	"archive/zip"
+	"blog-server-go/services"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -19,9 +20,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/cloudwego/eino/schema"
 	"github.com/elastic/go-elasticsearch/v8/esapi"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/log"
+	"github.com/pgvector/pgvector-go"
 	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
 )
@@ -29,6 +32,7 @@ import (
 // ArticleHandler 处理与文章相关的请求
 type ArticleHandler struct {
 	BaseHandler
+	LLMService *services.LLMService
 }
 
 // GetArticles 获取所有文章
@@ -345,7 +349,7 @@ func (ah *ArticleHandler) GetArticleSummary(c *fiber.Ctx) error {
 	var ctx = context.Background()
 	summary, _ := ah.Redis.HGet(ctx, "articleSummary", id).Result()
 
-	// 如果 summary 为空，则调用 OpenRouter API 生成
+	// 如果 summary 为空，则调用 LLM 生成
 	if summary == "" {
 		var article models.Article
 		result := ah.DB.Take(&article, id)
@@ -353,79 +357,21 @@ func (ah *ArticleHandler) GetArticleSummary(c *fiber.Ctx) error {
 			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Article not found"})
 		}
 
-		// 准备请求体
-		reqBody := map[string]interface{}{
-			"model": "google/gemini-2.5-flash",
-			"messages": []map[string]interface{}{
-				{
-					"role":    "user",
-					"content": fmt.Sprintf("请为以下文章生成一段简洁的摘要，以平均阅读速度300字/分钟为基准，根据摘要字数计算预计阅读时间,将摘要与阅读时间合并为一段，格式为“[摘要内容]（预计阅读时间：X分钟）,控制在100字以内：\n\n%s", article.Content),
-				},
-			},
-			"max_tokens": 150,
+		// 使用 Eino 生成摘要
+		messages := []*schema.Message{
+			schema.UserMessage(fmt.Sprintf("请为以下文章生成一段简洁的摘要，以平均阅读速度300字/分钟为基准，根据摘要字数计算预计阅读时间,将摘要与阅读时间合并为一段，格式为\"[摘要内容](预计阅读时间:X分钟)\",控制在100字以内:\n\n%s", article.Content)),
 		}
 
-		jsonBody, err := json.Marshal(reqBody)
+		content, err := ah.LLMService.GenerateText(ctx, messages)
 		if err != nil {
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to prepare request"})
+			log.Errorf("Failed to generate summary: %v", err)
+			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to generate summary"})
 		}
 
-		// 创建请求
-		req, err := http.NewRequest("POST", "https://openrouter.ai/api/v1/chat/completions", bytes.NewBuffer(jsonBody))
-		if err != nil {
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to create request"})
-		}
-
-		// 设置请求头
-		req.Header.Set("Content-Type", "application/json")
-		req.Header.Set("Authorization", "Bearer "+os.Getenv("OPENROUTER_API_KEY"))
-		req.Header.Set("HTTP-Referer", "https://zzfzzf.com")
-		req.Header.Set("X-Title", "Blog Article Summarizer")
-
-		// 设置超时
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		defer cancel()
-		req = req.WithContext(ctx)
-
-		// 发送请求
-		client := &http.Client{}
-		resp, err := client.Do(req)
-		if err != nil {
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to call OpenRouter API"})
-		}
-		defer resp.Body.Close()
-
-		// 读取响应内容
-		respBody, err := io.ReadAll(resp.Body)
-		if err != nil {
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to read response"})
-		}
-		log.Error("OpenRouter API Response:", string(respBody))
-
-		// 检查响应状态
-		if resp.StatusCode != http.StatusOK {
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "OpenRouter API error"})
-		}
-
-		// 解析响应
-		var openrouterResult map[string]interface{}
-		if err := json.NewDecoder(bytes.NewReader(respBody)).Decode(&openrouterResult); err != nil {
-			return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to parse response"})
-		}
-
-		// 提取摘要并保存到 Redis
-		if choices, ok := openrouterResult["choices"].([]interface{}); ok && len(choices) > 0 {
-			if choice, ok := choices[0].(map[string]interface{}); ok {
-				if message, ok := choice["message"].(map[string]interface{}); ok {
-					if content, ok := message["content"].(string); ok {
-						summary = content
-						err = ah.Redis.HSet(ctx, "articleSummary", id, summary).Err()
-						if err != nil {
-							log.Error("Failed to save summary to Redis:", err)
-						}
-					}
-				}
-			}
+		summary = content
+		// 保存到 Redis
+		if err := ah.Redis.HSet(ctx, "articleSummary", id, summary).Err(); err != nil {
+			log.Error("Failed to save summary to Redis:", err)
 		}
 	}
 
@@ -843,3 +789,203 @@ func (ah *ArticleHandler) SyncAllToDify(c *fiber.Ctx) error {
 		"results": syncResults,
 	})
 }
+
+// GenerateEmbedding 调用本地 llama.cpp embedding API 生成向量
+func (ah *ArticleHandler) GenerateEmbedding(text string) ([]float32, error) {
+	// 准备请求体
+	reqBody := map[string]interface{}{
+		"model": "text-embedding-v3",
+		"input": []string{text},
+	}
+
+	jsonBody, err := json.Marshal(reqBody)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal request: %w", err)
+	}
+
+	// 创建请求
+	req, err := http.NewRequest("POST", "http://embed.ooxo.cc/v1/embeddings", bytes.NewBuffer(jsonBody))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	// 设置请求头
+	req.Header.Set("Content-Type", "application/json")
+
+	// 设置超时
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	req = req.WithContext(ctx)
+
+	// 发送请求
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to send request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	// 检查响应状态
+	if resp.StatusCode != http.StatusOK {
+		respBody, _ := io.ReadAll(resp.Body)
+		return nil, fmt.Errorf("API error: %s", string(respBody))
+	}
+
+	// 解析响应
+	var result struct {
+		Data []struct {
+			Embedding []float32 `json:"embedding"`
+		} `json:"data"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("failed to parse response: %w", err)
+	}
+
+	if len(result.Data) == 0 {
+		return nil, fmt.Errorf("no embedding returned")
+	}
+
+	return result.Data[0].Embedding, nil
+}
+
+// VectorizeArticle 对单篇文章进行向量化
+func (ah *ArticleHandler) VectorizeArticle(c *fiber.Ctx) error {
+	id := c.Params("id")
+	var article models.Article
+	result := ah.DB.Take(&article, id)
+	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
+			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Article not found"})
+		}
+		log.Errorf("Database error: %v", result.Error)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to retrieve article"})
+	}
+
+	// 合并标题和内容/摘要生成向量
+	text := article.Title
+	if article.Content != "" {
+		text = fmt.Sprintf("标题：%s\n内容：%s", article.Title, article.Content)
+	} else if article.Summary != "" {
+		text = fmt.Sprintf("标题：%s\n摘要：%s", article.Title, article.Summary)
+	}
+	embedding, err := ah.GenerateEmbedding(text)
+	if err != nil {
+		log.Errorf("Failed to generate embedding for article %s: %v", article.ID, err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": fmt.Sprintf("Failed to generate embedding: %v", err)})
+	}
+
+	// 保存向量到数据库 - 使用原生 SQL 更新
+	vectorStr := pgvector.NewVector(embedding).String()
+	log.Infof("Vector string: %s", vectorStr)
+	if err := ah.DB.Exec("UPDATE article SET embedding = ? WHERE id = ?", vectorStr, article.ID).Error; err != nil {
+		log.Errorf("Failed to save embedding: %v", err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to save embedding"})
+	}
+
+	return c.JSON(fiber.Map{
+		"success": true,
+		"id":      id,
+		"message": "Article vectorized successfully",
+	})
+}
+
+// VectorizeAllArticles 批量向量化所有文章
+func (ah *ArticleHandler) VectorizeAllArticles(c *fiber.Ctx) error {
+	// 获取所有文章
+	var articles []models.Article
+	query := ah.DB.Where("is_deleted", false).Where("is_active", true)
+	result := query.Find(&articles)
+	if result.Error != nil {
+		log.Errorf("Failed to fetch articles: %v", result.Error)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{
+			"error": "Failed to fetch articles",
+		})
+	}
+
+	if len(articles) == 0 {
+		return c.JSON(fiber.Map{
+			"total":   0,
+			"success": 0,
+			"failure": 0,
+			"message": "No articles to vectorize",
+		})
+	}
+
+	// 创建结果通道
+	type vectorizeResult struct {
+		ID      models.SnowflakeID `json:"id"`
+		Title   string             `json:"title"`
+		Success bool               `json:"success"`
+		Error   string             `json:"error,omitempty"`
+	}
+	results := make(chan vectorizeResult, len(articles))
+
+	// 创建一个通道来控制并发数量
+	semaphore := make(chan struct{}, 3) // 最多3个并发，避免API限流
+	var wg sync.WaitGroup
+
+	// 遍历所有文章进行向量化
+	for _, article := range articles {
+		wg.Add(1)
+		go func(article models.Article) {
+			defer wg.Done()
+
+			// 获取信号量
+			semaphore <- struct{}{}
+			defer func() { <-semaphore }()
+
+			// 合并标题和内容/摘要生成向量
+			text := article.Title
+			if article.Content != "" {
+				text = fmt.Sprintf("标题：%s\n内容：%s", article.Title, article.Content)
+			} else if article.Summary != "" {
+				text = fmt.Sprintf("标题：%s\n摘要：%s", article.Title, article.Summary)
+			}
+			embedding, err := ah.GenerateEmbedding(text)
+			if err != nil {
+				results <- vectorizeResult{ID: article.ID, Title: article.Title, Success: false, Error: err.Error()}
+				return
+			}
+
+			// 保存向量到数据库 - 使用原生 SQL 更新
+			vectorStr := pgvector.NewVector(embedding).String()
+			if err := ah.DB.Exec("UPDATE article SET embedding = ? WHERE id = ?", vectorStr, article.ID).Error; err != nil {
+				results <- vectorizeResult{ID: article.ID, Title: article.Title, Success: false, Error: "Failed to save embedding"}
+				return
+			}
+
+			results <- vectorizeResult{ID: article.ID, Title: article.Title, Success: true}
+		}(article)
+	}
+
+	// 等待所有向量化完成
+	go func() {
+		wg.Wait()
+		close(results)
+	}()
+
+	// 收集结果
+	var vectorizeResults []vectorizeResult
+	for result := range results {
+		vectorizeResults = append(vectorizeResults, result)
+	}
+
+	// 统计结果
+	successCount := 0
+	failureCount := 0
+	for _, result := range vectorizeResults {
+		if result.Success {
+			successCount++
+		} else {
+			failureCount++
+		}
+	}
+
+	return c.JSON(fiber.Map{
+		"total":   len(articles),
+		"success": successCount,
+		"failure": failureCount,
+		"results": vectorizeResults,
+	})
+}
+
