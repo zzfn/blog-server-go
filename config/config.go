@@ -3,14 +3,13 @@ package config
 import (
 	"context"
 	"fmt"
-	"io"
 	"log"
 	"os"
 	"strconv"
 	"time"
 
-	"github.com/elastic/go-elasticsearch/v8"
 	fiberlog "github.com/gofiber/fiber/v2/log"
+	"github.com/meilisearch/meilisearch-go"
 	"github.com/redis/go-redis/v9"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
@@ -70,37 +69,27 @@ func SetupRedis() (*redis.Client, error) {
 	return client, nil
 }
 
-func SetupElasticsearch() (*elasticsearch.Client, error) {
-	esAddress := os.Getenv("ES_ADDRESS")
-	esUsername := os.Getenv("ES_USERNAME")
-	esPassword := os.Getenv("ES_PASSWORD")
-	cfg := elasticsearch.Config{
-		Addresses: []string{esAddress},
-		Username:  esUsername,
-		Password:  esPassword,
+func SetupMeilisearch() (meilisearch.ServiceManager, error) {
+	meiliAddress := os.Getenv("MEILI_ADDRESS")
+	if meiliAddress == "" {
+		meiliAddress = os.Getenv("MEILI_HOST")
+	}
+	meiliAPIKey := os.Getenv("MEILI_API_KEY")
+
+	if meiliAddress == "" {
+		return nil, fmt.Errorf("MEILI_ADDRESS is required")
 	}
 
-	esClient, err := elasticsearch.NewClient(cfg)
+	meiliClient := meilisearch.New(meiliAddress, meilisearch.WithAPIKey(meiliAPIKey))
+
+	health, err := meiliClient.Health()
 	if err != nil {
-		return nil, fmt.Errorf("Error initializing Elasticsearch: %w", err)
+		return nil, fmt.Errorf("error pinging Meilisearch: %w", err)
+	}
+	if health.Status != "available" {
+		return nil, fmt.Errorf("Meilisearch is not available: %s", health.Status)
 	}
 
-	// Ping the Elasticsearch server to get StatusCode
-	res, err := esClient.Ping()
-	if err != nil {
-		return nil, fmt.Errorf("Error pinging Elasticsearch: %w", err)
-	}
-	defer func(Body io.ReadCloser) {
-		err := Body.Close()
-		if err != nil {
-			fiberlog.Errorf("Error closing response body: %v", err)
-		}
-	}(res.Body)
-
-	if res.StatusCode != 200 {
-		return nil, fmt.Errorf("Elasticsearch returned non-200 status code: %d", res.StatusCode)
-	}
-
-	fiberlog.Info("Elasticsearch connected successfully")
-	return esClient, nil
+	fiberlog.Info("Meilisearch connected successfully")
+	return meiliClient, nil
 }

@@ -14,10 +14,10 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/elastic/go-elasticsearch/v8"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/log"
 	"github.com/gofiber/fiber/v2/middleware/cors"
+	"github.com/meilisearch/meilisearch-go"
 	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
 )
@@ -71,19 +71,19 @@ func NewRedisClient() *redis.Client {
 	return redisClient
 }
 
-func NewWebSocketHandler(db *gorm.DB, redis *redis.Client, es *elasticsearch.Client) *handlers.WebSocketHandler {
+func NewWebSocketHandler(db *gorm.DB, redis *redis.Client, meili meilisearch.ServiceManager) *handlers.WebSocketHandler {
 	return &handlers.WebSocketHandler{
 		BaseHandler: handlers.BaseHandler{
 			DB:    db,
 			Redis: redis,
-			ES:    es,
+			Meili: meili,
 		},
 	}
 }
 
 // 注入BaseHandler
-func NewBaseHandler(db *gorm.DB, redisClient *redis.Client, esClient *elasticsearch.Client, kafkaProducer *kafka.Producer, wsHandler *handlers.WebSocketHandler) handlers.BaseHandler {
-	return handlers.BaseHandler{DB: db, Redis: redisClient, ES: esClient, KafkaProducer: kafkaProducer, WSHandler: wsHandler}
+func NewBaseHandler(db *gorm.DB, redisClient *redis.Client, meiliClient meilisearch.ServiceManager, kafkaProducer *kafka.Producer, wsHandler *handlers.WebSocketHandler) handlers.BaseHandler {
+	return handlers.BaseHandler{DB: db, Redis: redisClient, Meili: meiliClient, KafkaProducer: kafkaProducer, WSHandler: wsHandler}
 }
 
 func RegisterRoutes(app *fiber.App, baseHandler handlers.BaseHandler) {
@@ -113,10 +113,10 @@ func RegisterRoutes(app *fiber.App, baseHandler handlers.BaseHandler) {
 	routes.SetupRoutes(app, allHandlers)
 }
 
-func NewElasticsearchClient() (*elasticsearch.Client, error) {
-	esClient, err := config.SetupElasticsearch()
-	common.HandleError(err, "Error setting up Elasticsearch:")
-	return esClient, err
+func NewMeilisearchClient() (meilisearch.ServiceManager, error) {
+	meiliClient, err := config.SetupMeilisearch()
+	common.HandleError(err, "Error setting up Meilisearch:")
+	return meiliClient, err
 }
 func main() {
 	// 初始化Fiber app
@@ -131,18 +131,18 @@ func main() {
 	redisClient := NewRedisClient()
 	defer redisClient.Close()
 
-	// 初始化Elasticsearch客户端
-	esClient, err := NewElasticsearchClient()
+	// 初始化Meilisearch客户端
+	meiliClient, err := NewMeilisearchClient()
 	if err != nil {
-		log.Fatalf("Error initializing Elasticsearch client: %v", err)
+		log.Fatalf("Error initializing Meilisearch client: %v", err)
 	}
 
 	// 初始化WebSocketHandler
-	wsHandler := NewWebSocketHandler(db, redisClient, esClient)
+	wsHandler := NewWebSocketHandler(db, redisClient, meiliClient)
 
 	// 初始化BaseHandler
 	kafkaProducer := kafka.NewProducer()
-	baseHandler := NewBaseHandler(db, redisClient, esClient, kafkaProducer, wsHandler)
+	baseHandler := NewBaseHandler(db, redisClient, meiliClient, kafkaProducer, wsHandler)
 	topicHandlers := map[string]kafka.MessageHandlerFunc{
 		kafka.ArticleUpdateTopic:    kafka.ArticleHandler,
 		kafka.FriendUpdateTopic:     kafka.FriendHandler,

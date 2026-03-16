@@ -17,13 +17,14 @@ import (
 	"net/url"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/cloudwego/eino/schema"
-	"github.com/elastic/go-elasticsearch/v8/esapi"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/log"
+	"github.com/meilisearch/meilisearch-go"
 	"github.com/pgvector/pgvector-go"
 	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
@@ -33,6 +34,16 @@ import (
 type ArticleHandler struct {
 	BaseHandler
 	LLMService *services.LLMService
+}
+
+const articleSearchIndex = "blog"
+
+type articleSearchDocument struct {
+	ID        string         `json:"id"`
+	Title     string         `json:"title"`
+	Content   string         `json:"content"`
+	Tag       string         `json:"tag"`
+	Formatted map[string]any `json:"_formatted,omitempty"`
 }
 
 // GetArticles 获取所有文章
@@ -183,165 +194,166 @@ func (ah *ArticleHandler) UpdateArticle(c *fiber.Ctx) error {
 	return c.JSON(existingArticle)
 }
 
-func (ah *ArticleHandler) SearchInES(c *fiber.Ctx) error {
-	var keyword = c.Query("keyword")
+func (ah *ArticleHandler) SearchArticles(c *fiber.Ctx) error {
+	keyword := strings.TrimSpace(c.Query("keyword"))
+	if keyword == "" {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "keyword is required"})
+	}
+
 	ctx := context.Background()
 	_, err := ah.Redis.ZIncrBy(ctx, "searchKeywords", 1, keyword).Result()
 	common.HandleError(err, "Error incrementing keyword score:")
 
-	var buf map[string]interface{}
-	buf = map[string]interface{}{
-		"query": map[string]interface{}{
-			"bool": map[string]interface{}{
-				"should": []map[string]interface{}{
-					{"match_phrase": map[string]interface{}{"content": keyword}},
-					{"match_phrase": map[string]interface{}{"title": keyword}},
-					{"match_phrase": map[string]interface{}{"tag": keyword}},
-				},
-			},
+	if err := ah.ensureMeiliArticleIndex(); err != nil {
+		log.Errorf("Failed to prepare Meilisearch index before search: %v", err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Search index is unavailable"})
+	}
+
+	searchResult, err := ah.Meili.Index(articleSearchIndex).Search(keyword, &meilisearch.SearchRequest{
+		Limit:                20,
+		AttributesToRetrieve: []string{"id", "title", "content", "tag"},
+		AttributesToSearchOn: []string{"title", "content", "tag"},
+		AttributesToHighlight: []string{
+			"title",
+			"content",
+			"tag",
 		},
-		"highlight": map[string]interface{}{
-			"fields": map[string]interface{}{
-				"content": map[string]interface{}{},
-				"title":   map[string]interface{}{},
-				"tag":     map[string]interface{}{},
-			},
-		},
-	}
-	var b []byte
-	b, err = json.Marshal(buf)
+		HighlightPreTag:  "<em>",
+		HighlightPostTag: "</em>",
+	})
 	if err != nil {
-		log.Fatalf("Error marshaling query: %s", err)
+		log.Errorf("Failed to search articles in Meilisearch: %v", err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Search failed"})
 	}
 
-	var res *esapi.Response
-	res, err = ah.ES.Search(
-		ah.ES.Search.WithIndex("blog"),
-		ah.ES.Search.WithBody(bytes.NewReader(b)),
-		ah.ES.Search.WithPretty(),
-	)
-	if err != nil {
-		log.Fatalf("Error getting response: %s", err)
+	articles := make([]articleSearchDocument, 0, len(searchResult.Hits))
+	if err := searchResult.Hits.DecodeInto(&articles); err != nil {
+		log.Errorf("Failed to decode Meilisearch hits: %v", err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Search result decode failed"})
 	}
-	defer func(Body io.ReadCloser) {
-		err := Body.Close()
-		if err != nil {
 
+	results := make([]map[string]any, 0, len(articles))
+	for _, article := range articles {
+		item := map[string]any{
+			"id":      article.ID,
+			"title":   article.Title,
+			"content": article.Content,
+			"tag":     article.Tag,
 		}
-	}(res.Body)
-
-	if res.IsError() {
-		log.Fatalf("Error: %s", res.String())
+		if article.Formatted != nil {
+			if value, ok := article.Formatted["title"]; ok {
+				item["title"] = value
+			}
+			if value, ok := article.Formatted["content"]; ok {
+				item["content"] = value
+			}
+			if value, ok := article.Formatted["tag"]; ok {
+				item["tag"] = value
+			}
+		}
+		results = append(results, item)
 	}
 
-	var r map[string]interface{}
-	if err := json.NewDecoder(res.Body).Decode(&r); err != nil {
-		return c.Status(fiber.StatusInternalServerError).SendString("Error parsing the response body: " + err.Error())
-	}
-
-	// 提取 hits 对象
-	hits, ok := r["hits"].(map[string]interface{})["hits"].([]interface{})
-	if !ok {
-		log.Error("Error: Hits not found")
-	}
-
-	// 准备用于返回的 articles 切片
-	var articles []map[string]interface{}
-
-	// 遍历每一个 hit 并提取需要的字段
-	for _, hit := range hits {
-		hitMap := hit.(map[string]interface{})["_source"].(map[string]interface{})
-		highlight := hit.(map[string]interface{})["highlight"].(map[string]interface{})
-		docId := hit.(map[string]interface{})["_id"]
-
-		// 创建一个新的 article map 来存储字段和高亮信息
-		article := make(map[string]interface{})
-		if !ok {
-			log.Error("Could not convert _id to string")
-			continue // 或返回错误
-		}
-		article["id"] = docId
-		article["title"] = hitMap["title"]
-		article["content"] = hitMap["content"]
-		article["tag"] = hitMap["tag"]
-
-		// 如果存在高亮信息，则用高亮信息替换原字段
-		if title, ok := highlight["title"].([]interface{}); ok {
-			article["title"] = title[0]
-		}
-		if content, ok := highlight["content"].([]interface{}); ok {
-			article["content"] = content[0]
-		}
-		if tag, ok := highlight["tag"].([]interface{}); ok {
-			article["tag"] = tag[0]
-		}
-
-		articles = append(articles, article)
-	}
-
-	return c.JSON(articles)
+	return c.JSON(results)
 }
-func (ah *ArticleHandler) SyncSQLToES(c *fiber.Ctx) error {
-	// 删除已存在的索引
-	res, err := ah.ES.Indices.Delete([]string{"blog"})
-	if err != nil {
-		log.Fatalf("Failed deleting index: %v", err)
+func (ah *ArticleHandler) SyncSQLToMeili(c *fiber.Ctx) error {
+	if err := ah.resetMeiliArticleIndex(); err != nil {
+		log.Errorf("Failed to reset Meilisearch index: %v", err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to reset search index"})
 	}
-	defer res.Body.Close()
-	// 创建新索引
-	res, err = ah.ES.Indices.Create("blog")
-	if err != nil {
-		log.Fatalf("Failed creating index: %v", err)
-	}
-	defer res.Body.Close()
-
-	// 设置映射
-	propertiesMapping := map[string]interface{}{
-		"title": map[string]interface{}{
-			"type":            "text",
-			"analyzer":        "smartcn",
-			"search_analyzer": "smartcn",
-		},
-		// ... 添加其他字段映射
-	}
-	mapping := map[string]interface{}{"properties": propertiesMapping}
-	b, _ := json.Marshal(mapping)
-	res, err = ah.ES.Indices.PutMapping([]string{"blog"}, bytes.NewReader(b))
-	if err != nil {
-		log.Fatalf("Failed setting mappings: %v", err)
-	}
-	defer res.Body.Close()
 
 	query := ah.DB.Where("is_deleted", false).Where("is_active", true)
 	var articles []models.Article
 
-	_ = query.Find(&articles)
+	result := query.Find(&articles)
+	if result.Error != nil {
+		log.Errorf("Failed to query articles for Meilisearch sync: %v", result.Error)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to load articles"})
+	}
 
-	// 执行批量索引操作
-	var buf bytes.Buffer
+	documents := make([]articleSearchDocument, 0, len(articles))
 	for _, article := range articles {
-		meta := map[string]interface{}{
-			"index": map[string]interface{}{
-				"_id":    article.ID,
-				"_index": "blog",
-			},
-		}
-		data, _ := json.Marshal(meta)
-		buf.Write(data)
-		buf.WriteByte('\n')
-
-		body, _ := json.Marshal(article)
-		buf.Write(body)
-		buf.WriteByte('\n')
+		documents = append(documents, articleSearchDocument{
+			ID:      string(article.ID),
+			Title:   article.Title,
+			Content: article.Content,
+			Tag:     article.Tag,
+		})
 	}
 
-	res, err = ah.ES.Bulk(&buf)
+	primaryKey := "id"
+	taskInfo, err := ah.Meili.Index(articleSearchIndex).AddDocuments(documents, &meilisearch.DocumentOptions{
+		PrimaryKey: &primaryKey,
+	})
 	if err != nil {
-		log.Fatalf("Failed bulk indexing: %v", err)
+		log.Errorf("Failed to sync documents to Meilisearch: %v", err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to sync articles"})
 	}
-	defer res.Body.Close()
+	if _, err := ah.Meili.WaitForTask(taskInfo.TaskUID, 0); err != nil {
+		log.Errorf("Failed waiting Meilisearch sync task: %v", err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Index task failed"})
+	}
 
-	return c.JSON(nil)
+	return c.JSON(fiber.Map{
+		"index": articleSearchIndex,
+		"count": len(documents),
+	})
+}
+
+func (ah *ArticleHandler) ensureMeiliArticleIndex() error {
+	_, err := ah.Meili.GetIndex(articleSearchIndex)
+	if err != nil {
+		var meiliErr *meilisearch.Error
+		if !errors.As(err, &meiliErr) || meiliErr.StatusCode != http.StatusNotFound {
+			return err
+		}
+
+		taskInfo, createErr := ah.Meili.CreateIndex(&meilisearch.IndexConfig{
+			Uid:        articleSearchIndex,
+			PrimaryKey: "id",
+		})
+		if createErr != nil {
+			return createErr
+		}
+		if _, waitErr := ah.Meili.WaitForTask(taskInfo.TaskUID, 0); waitErr != nil {
+			return waitErr
+		}
+	}
+
+	searchableAttributes := []string{"title", "content", "tag"}
+	taskInfo, err := ah.Meili.Index(articleSearchIndex).UpdateSearchableAttributes(&searchableAttributes)
+	if err != nil {
+		return err
+	}
+	_, err = ah.Meili.WaitForTask(taskInfo.TaskUID, 0)
+	return err
+}
+
+func (ah *ArticleHandler) resetMeiliArticleIndex() error {
+	taskInfo, err := ah.Meili.DeleteIndex(articleSearchIndex)
+	if err != nil {
+		var meiliErr *meilisearch.Error
+		if !errors.As(err, &meiliErr) || meiliErr.StatusCode != http.StatusNotFound {
+			return err
+		}
+	} else {
+		if _, waitErr := ah.Meili.WaitForTask(taskInfo.TaskUID, 0); waitErr != nil {
+			return waitErr
+		}
+	}
+
+	taskInfo, err = ah.Meili.CreateIndex(&meilisearch.IndexConfig{
+		Uid:        articleSearchIndex,
+		PrimaryKey: "id",
+	})
+	if err != nil {
+		return err
+	}
+	if _, err := ah.Meili.WaitForTask(taskInfo.TaskUID, 0); err != nil {
+		return err
+	}
+
+	return ah.ensureMeiliArticleIndex()
 }
 
 func (ah *ArticleHandler) GetArticleSummary(c *fiber.Ctx) error {
@@ -988,4 +1000,3 @@ func (ah *ArticleHandler) VectorizeAllArticles(c *fiber.Ctx) error {
 		"results": vectorizeResults,
 	})
 }
-

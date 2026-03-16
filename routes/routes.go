@@ -31,8 +31,9 @@ func SetupRoutes(app *fiber.App, h *Handlers) {
 	articles.Get("/", h.ArticleHandler.GetArticles)
 	articles.Post("/", middleware.AdminMiddleware(), h.ArticleHandler.CreateArticle)   // 新建文章
 	articles.Put("/:id", middleware.AdminMiddleware(), h.ArticleHandler.UpdateArticle) // 更新文章
-	articles.Get("/search/es", h.ArticleHandler.SearchInES)
-	articles.Get("/search/sync", h.ArticleHandler.SyncSQLToES)
+	articles.Get("/search/es", h.ArticleHandler.SearchArticles)
+	articles.Get("/search", h.ArticleHandler.SearchArticles)
+	articles.Get("/search/sync", h.ArticleHandler.SyncSQLToMeili)
 	articles.Get("/:id", h.ArticleHandler.GetArticleByID)
 	articles.Put("/:id/views", h.ArticleHandler.UpdateArticleViews)
 	// 摘要

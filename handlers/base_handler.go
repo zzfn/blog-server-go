@@ -2,7 +2,7 @@ package handlers
 
 import (
 	"blog-server-go/kafka"
-	"github.com/elastic/go-elasticsearch/v8"
+	"github.com/meilisearch/meilisearch-go"
 	"github.com/redis/go-redis/v9"
 	"gorm.io/gorm"
 )
@@ -10,7 +10,7 @@ import (
 type BaseHandler struct {
 	DB            *gorm.DB
 	Redis         *redis.Client
-	ES            *elasticsearch.Client
+	Meili         meilisearch.ServiceManager
 	KafkaProducer *kafka.Producer
 	WSHandler     *WebSocketHandler
 }
