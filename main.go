@@ -6,7 +6,6 @@ import (
 	"blog-server-go/handlers"
 	"blog-server-go/kafka"
 	"blog-server-go/middleware"
-	"blog-server-go/models"
 	"blog-server-go/routes"
 	"blog-server-go/services"
 	"blog-server-go/tasks"
@@ -61,7 +60,6 @@ func NewFiberApp() *fiber.App {
 func NewDatabaseConnection() (*gorm.DB, *sql.DB) {
 	db, err := config.SetupDatabase()
 	common.HandleError(err, "Failed to connect to database:")
-	common.HandleError(db.AutoMigrate(&models.Article{}), "Failed to migrate article schema:")
 	sqlDB, err := db.DB()
 	common.HandleError(err, "Failed to get DB object:")
 	return db, sqlDB
