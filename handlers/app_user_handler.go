@@ -234,29 +234,6 @@ func (auh *AppUserHandler) Register(c *fiber.Ctx) error {
 	}
 	return c.Status(201).JSON(input)
 }
-func (auh *AppUserHandler) Github(c *fiber.Ctx) error {
-	var input struct {
-		Username  string `json:"username"`
-		AvatarUrl string `json:"avatarUrl"`
-	}
-	if err := c.BodyParser(&input); err != nil {
-		log.Error(err)
-		return c.Status(400).JSON(fiber.Map{"error": "Failed to parse request body"})
-	}
-	user := models.AppUser{}
-	if err := auh.DB.Where("username = ?", input.Username).First(&user).Error; err != nil {
-		newUser := models.AppUser{
-			Username:  input.Username,
-			AvatarUrl: input.AvatarUrl,
-		}
-		if err := auh.DB.Create(&newUser).Error; err != nil {
-			log.Error(err)
-			return c.Status(500).JSON(fiber.Map{"error": "Failed to create user: " + err.Error()})
-		}
-		return c.JSON(newUser)
-	}
-	return c.JSON(user)
-}
 
 func (auh *AppUserHandler) DiscourseLogin(c *fiber.Ctx) error {
 	baseURL, secret, callbackURL, err := auh.discourseConnectConfig()
