@@ -37,8 +37,20 @@ func ResponseMiddleware(c *fiber.Ctx) error {
 		}
 	}
 
+	statusCode := c.Response().StatusCode()
+	if statusCode >= fiber.StatusMultipleChoices && statusCode < fiber.StatusBadRequest {
+		return nil
+	}
+	if statusCode == fiber.StatusNoContent || statusCode == fiber.StatusNotModified {
+		return nil
+	}
+
 	// 获取原始响应
 	rawBody := c.Response().Body()
+	if len(rawBody) == 0 {
+		return nil
+	}
+
 	// 创建新的响应体
 	newResp := common.NewResponse(2000, "Success", json.RawMessage(rawBody))
 
