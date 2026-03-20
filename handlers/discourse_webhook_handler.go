@@ -82,12 +82,7 @@ func (dh *DiscourseWebhookHandler) Handle(c *fiber.Ctx) error {
 		return c.JSON(fiber.Map{"status": "ignored", "reason": "hidden or deleted post is not synced"})
 	}
 
-	instance := c.Get("X-Discourse-Instance")
-	if strings.TrimSpace(instance) == "" {
-		instance = os.Getenv("DISCOURSE_BASE_URL")
-	}
-
-	article, created, err := dh.upsertDiscourseArticle(post, payload.Tags, instance)
+	article, created, err := dh.upsertDiscourseArticle(post, payload.Tags)
 	if err != nil {
 		log.Errorf("failed to sync discourse webhook: %v", err)
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "failed to sync discourse article"})
@@ -107,27 +102,23 @@ func (dh *DiscourseWebhookHandler) Handle(c *fiber.Ctx) error {
 	})
 }
 
-func (dh *DiscourseWebhookHandler) upsertDiscourseArticle(post *discoursePostPayload, tags []string, instance string) (*models.Article, bool, error) {
+func (dh *DiscourseWebhookHandler) upsertDiscourseArticle(post *discoursePostPayload, tags []string) (*models.Article, bool, error) {
 	var article models.Article
-	result := dh.DB.Where("source = ? AND discourse_topic_id = ?", "discourse", post.TopicID).First(&article)
+	result := dh.DB.Where("discourse_topic_id = ?", post.TopicID).First(&article)
 	if result.Error != nil && result.Error != gorm.ErrRecordNotFound {
 		return nil, false, result.Error
 	}
 
-	topicURL := buildDiscourseTopicURL(instance, post.TopicSlug, post.TopicID)
 	tagValue := strings.Join(tags, ",")
 	created := result.Error == gorm.ErrRecordNotFound
 
 	if created {
 		article = models.Article{
-			Title:             strings.TrimSpace(post.TopicTitle),
-			Content:           post.Raw,
-			Tag:               tagValue,
-			IsActive:          true,
-			Source:            "discourse",
-			DiscourseTopicID:  post.TopicID,
-			DiscoursePostID:   post.ID,
-			DiscourseTopicURL: topicURL,
+			Title:            strings.TrimSpace(post.TopicTitle),
+			Content:          post.Raw,
+			Tag:              tagValue,
+			IsActive:         true,
+			DiscourseTopicID: post.TopicID,
 		}
 		if err := dh.DB.Omit("embedding").Create(&article).Error; err != nil {
 			return nil, false, err
@@ -136,13 +127,10 @@ func (dh *DiscourseWebhookHandler) upsertDiscourseArticle(post *discoursePostPay
 	}
 
 	updates := map[string]interface{}{
-		"title":               strings.TrimSpace(post.TopicTitle),
-		"content":             post.Raw,
-		"tag":                 tagValue,
-		"is_active":           true,
-		"source":              "discourse",
-		"discourse_post_id":   post.ID,
-		"discourse_topic_url": topicURL,
+		"title":     strings.TrimSpace(post.TopicTitle),
+		"content":   post.Raw,
+		"tag":       tagValue,
+		"is_active": true,
 	}
 	if err := dh.DB.Model(&article).Updates(updates).Error; err != nil {
 		return nil, false, err
@@ -170,16 +158,4 @@ func verifyDiscourseSignature(signature string, body []byte) error {
 		return fmt.Errorf("invalid discourse webhook signature")
 	}
 	return nil
-}
-
-func buildDiscourseTopicURL(instance, slug string, topicID int64) string {
-	instance = strings.TrimRight(strings.TrimSpace(instance), "/")
-	slug = strings.Trim(strings.TrimSpace(slug), "/")
-	if instance == "" || topicID == 0 {
-		return ""
-	}
-	if slug == "" {
-		return fmt.Sprintf("%s/t/%d", instance, topicID)
-	}
-	return fmt.Sprintf("%s/t/%s/%d", instance, slug, topicID)
 }
