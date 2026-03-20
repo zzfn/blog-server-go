@@ -61,8 +61,10 @@ func SetupRoutes(app *fiber.App, h *Handlers) {
 	friendLinks.Post("/", h.FriendLinkHandler.SaveFriendLink) // Save a friend link
 	friendLinks.Get("/", h.FriendLinkHandler.GetFriendLinks)
 	//App User
-	appUsers := v1.Group("/app-users")                         // 修改为 app-users
-	appUsers.Post("/github/login", h.AppUserHandler.Github)    // github login
+	appUsers := v1.Group("/app-users")                      // 修改为 app-users
+	appUsers.Post("/github/login", h.AppUserHandler.Github) // github login
+	appUsers.Get("/discourse/login", h.AppUserHandler.DiscourseLogin)
+	appUsers.Get("/discourse/callback", h.AppUserHandler.DiscourseCallback)
 	appUsers.Post("/register", h.AppUserHandler.Register)      // 注册新用户
 	appUsers.Post("/login", h.AppUserHandler.Login)            // 用户登录
 	appUsers.Post("/logout", h.AppUserHandler.Logout)          // 用户注销

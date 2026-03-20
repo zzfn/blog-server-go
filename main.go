@@ -9,6 +9,7 @@ import (
 	"blog-server-go/routes"
 	"blog-server-go/services"
 	"blog-server-go/tasks"
+	"context"
 	"database/sql"
 	"os"
 	"os/signal"
@@ -49,7 +50,12 @@ func ShutdownServices(app *fiber.App, sqlDB *sql.DB, redisClient *redis.Client, 
 
 func NewFiberApp() *fiber.App {
 	app := fiber.New(fiber.Config{BodyLimit: 20 * 1024 * 1024})
-	app.Use(cors.New())
+	corsConfig := cors.Config{}
+	if origin := os.Getenv("APP_FRONTEND_URL"); origin != "" {
+		corsConfig.AllowOrigins = origin
+		corsConfig.AllowCredentials = true
+	}
+	app.Use(cors.New(corsConfig))
 	app.Use(middleware.LatencyMiddleware)
 	app.Use(middleware.LoggingMiddleware)
 	app.Use(middleware.AuthMiddleware)
@@ -132,6 +138,13 @@ func main() {
 	// 初始化Redis客户端
 	redisClient := NewRedisClient()
 	defer redisClient.Close()
+	middleware.SetTokenValidator(func(token string, payload common.Payload) (bool, error) {
+		storedToken, err := redisClient.HGet(context.Background(), "username_to_token", payload.UserID).Result()
+		if err != nil {
+			return false, err
+		}
+		return storedToken == token, nil
+	})
 
 	// 初始化Meilisearch客户端
 	meiliClient, err := NewMeilisearchClient()
