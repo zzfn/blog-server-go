@@ -9,6 +9,7 @@ import (
 
 type Handlers struct {
 	ArticleHandler              handlers.ArticleHandler
+	DiscourseWebhookHandler     handlers.DiscourseWebhookHandler
 	CommentsHandler             handlers.CommentsHandler
 	WebSocketHandler            handlers.WebSocketHandler
 	FriendLinkHandler           handlers.FriendLinksHandler
@@ -21,6 +22,7 @@ type Handlers struct {
 }
 
 func SetupRoutes(app *fiber.App, h *Handlers) {
+	app.Post("/webhook/discourse", h.DiscourseWebhookHandler.Handle)
 
 	// API Versioning
 	v1 := app.Group("/v1")
