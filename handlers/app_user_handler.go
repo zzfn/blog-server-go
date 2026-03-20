@@ -399,5 +399,14 @@ func (auh *AppUserHandler) GetAuthenticatedUser(c *fiber.Ctx) error {
 		log.Errorf("Failed to retrieve article: %v", result.Error) // 使用你的日志库记录错误
 		return c.Status(500).JSON(fiber.Map{"error": "Internal Server Error"})
 	}
-	return c.JSON(user)
+	return c.JSON(fiber.Map{
+		"id":                  user.ID,
+		"username":            user.Username,
+		"email":               user.Email,
+		"isAdmin":             user.IsAdmin,
+		"avatarUrl":           user.AvatarUrl,
+		"nickname":            user.Nickname,
+		"discourseExternalId": user.DiscourseExternalID,
+		"discourseGroups":     user.DiscourseGroups,
+	})
 }
