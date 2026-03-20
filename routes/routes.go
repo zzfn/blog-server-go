@@ -22,10 +22,9 @@ type Handlers struct {
 }
 
 func SetupRoutes(app *fiber.App, h *Handlers) {
-	app.Post("/webhook/discourse", h.DiscourseWebhookHandler.Handle)
-
 	// API Versioning
 	v1 := app.Group("/v1")
+	v1.Post("/webhook/discourse", h.DiscourseWebhookHandler.Handle)
 	v1.Get("/ws", h.WebSocketHandler.UpgradeToWebSocket)
 
 	// Articles
