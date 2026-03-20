@@ -188,6 +188,7 @@ func (auh *AppUserHandler) upsertDiscourseUser(values url.Values) (*models.AppUs
 			DiscourseExternalID: externalID,
 			DiscourseGroups:     groups,
 		}
+
 		if err := auh.DB.Create(&user).Error; err != nil {
 			return nil, err
 		}
