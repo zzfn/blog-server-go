@@ -463,7 +463,7 @@ func (ah *ArticleHandler) ExportAllArticlesMarkdown(c *fiber.Ctx) error {
 		// 处理文件名
 		filename := article.Title
 		if filename == "" {
-			filename = fmt.Sprintf("article_%d", article.ID)
+			filename = fmt.Sprintf("article_%s", article.ID)
 		}
 		filename = filename + ".md"
 
