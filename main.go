@@ -13,6 +13,7 @@ import (
 	"database/sql"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 
 	"github.com/gofiber/fiber/v2"
@@ -51,8 +52,19 @@ func ShutdownServices(app *fiber.App, sqlDB *sql.DB, redisClient *redis.Client, 
 func NewFiberApp() *fiber.App {
 	app := fiber.New(fiber.Config{BodyLimit: 20 * 1024 * 1024})
 	corsConfig := cors.Config{}
-	if origin := os.Getenv("APP_FRONTEND_URL"); origin != "" {
-		corsConfig.AllowOrigins = origin
+	origins := make([]string, 0, 2)
+	if origin := strings.TrimSpace(os.Getenv("APP_FRONTEND_URL")); origin != "" {
+		origins = append(origins, origin)
+	}
+	for _, origin := range strings.Split(os.Getenv("APP_FRONTEND_ALLOWED_URLS"), ",") {
+		origin = strings.TrimSpace(origin)
+		if origin == "" {
+			continue
+		}
+		origins = append(origins, origin)
+	}
+	if len(origins) > 0 {
+		corsConfig.AllowOrigins = strings.Join(origins, ",")
 		corsConfig.AllowCredentials = true
 	}
 	app.Use(cors.New(corsConfig))
