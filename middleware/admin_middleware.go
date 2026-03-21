@@ -2,42 +2,47 @@ package middleware
 
 import (
 	"blog-server-go/common"
-	"errors"
+
 	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/fiber/v2/log"
-	"github.com/gofiber/fiber/v2/middleware/keyauth"
 )
 
-func validateAPIKey(c *fiber.Ctx, key string) (bool, error) {
-	log.Info("API Key: ", key)
-	payload, err := common.ParseToken(key)
-	c.Locals("userId", payload.UserID)
-	c.Locals("isAdmin", payload.IsAdmin)
-	c.Locals("username", payload.Username)
-	if err != nil {
-		log.Info("API Key is invalid")
-		return false, keyauth.ErrMissingOrMalformedAPIKey
-	}
-	if payload.IsAdmin {
-		log.Info("API Key is valid")
-		return true, nil
-	} else {
-		log.Info("API Key is invalid")
-		return false, errors.New("API Key is invalid")
-	}
-}
-
-// AuthMiddleware KeyAuth provides the configuration for API key authentication.
 func AdminMiddleware() fiber.Handler {
-	return keyauth.New(keyauth.Config{
-		ErrorHandler: func(c *fiber.Ctx, err error) error {
-			if errors.Is(err, keyauth.ErrMissingOrMalformedAPIKey) {
-				newResp := common.NewResponse(fiber.StatusUnauthorized, err.Error(), nil)
+	return func(c *fiber.Ctx) error {
+		auth := c.Get("Authorization")
+		token := common.ExtractToken(auth)
+		if token == "" {
+			token = c.Cookies("blog_token")
+		}
+		if token == "" {
+			newResp := common.NewResponse(fiber.StatusUnauthorized, "Unauthorized", nil)
+			return c.Status(fiber.StatusUnauthorized).JSON(newResp)
+		}
+
+		payload, err := common.ParseToken(token)
+		if err != nil {
+			newResp := common.NewResponse(fiber.StatusUnauthorized, "Unauthorized", nil)
+			return c.Status(fiber.StatusUnauthorized).JSON(newResp)
+		}
+
+		tokenValidatorMu.RLock()
+		validator := tokenValidator
+		tokenValidatorMu.RUnlock()
+		if validator != nil {
+			ok, err := validator(token, payload)
+			if err != nil || !ok {
+				newResp := common.NewResponse(fiber.StatusUnauthorized, "Unauthorized", nil)
 				return c.Status(fiber.StatusUnauthorized).JSON(newResp)
 			}
-			newResp := common.NewResponse(fiber.StatusUnauthorized, err.Error(), nil)
+		}
+
+		if !payload.IsAdmin {
+			newResp := common.NewResponse(fiber.StatusUnauthorized, "Admin access required", nil)
 			return c.Status(fiber.StatusUnauthorized).JSON(newResp)
-		},
-		Validator: validateAPIKey,
-	})
+		}
+
+		c.Locals("userId", payload.UserID)
+		c.Locals("isAdmin", payload.IsAdmin)
+		c.Locals("username", payload.Username)
+		return c.Next()
+	}
 }
