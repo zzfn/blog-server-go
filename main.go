@@ -108,9 +108,12 @@ func RegisterRoutes(app *fiber.App, baseHandler handlers.BaseHandler) {
 	// 初始化 LLM 服务
 	llmService := services.NewLLMService()
 
+	// 初始化 Discourse API 客户端
+	discourseClient := common.NewDiscourseAPIClient()
+
 	articleHandler := handlers.ArticleHandler{BaseHandler: baseHandler, LLMService: llmService}
 	discourseWebhookHandler := handlers.DiscourseWebhookHandler{BaseHandler: baseHandler}
-	commentsHandler := handlers.CommentsHandler{BaseHandler: baseHandler}
+	commentsHandler := handlers.CommentsHandler{BaseHandler: baseHandler, DiscourseClient: discourseClient}
 	appUserHandler := handlers.AppUserHandler{BaseHandler: baseHandler}
 	webSocketHandler := handlers.WebSocketHandler{BaseHandler: baseHandler}
 	friendLinksHandler := handlers.FriendLinksHandler{BaseHandler: baseHandler}
