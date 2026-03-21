@@ -185,6 +185,7 @@ func (auh *AppUserHandler) setAuthCookie(c *fiber.Ctx, token string) {
 		sameSite = "lax"
 	}
 
+	auh.clearLegacyAuthCookies(c, secure, sameSite)
 	c.Cookie(&fiber.Cookie{
 		Name:     "blog_token",
 		Value:    token,
@@ -204,6 +205,7 @@ func (auh *AppUserHandler) clearAuthCookie(c *fiber.Ctx) {
 		sameSite = "lax"
 	}
 
+	auh.clearLegacyAuthCookies(c, secure, sameSite)
 	c.Cookie(&fiber.Cookie{
 		Name:     "blog_token",
 		Value:    "",
@@ -214,6 +216,31 @@ func (auh *AppUserHandler) clearAuthCookie(c *fiber.Ctx) {
 		Domain:   strings.TrimSpace(os.Getenv("AUTH_COOKIE_DOMAIN")),
 		Expires:  time.Unix(0, 0),
 	})
+}
+
+func (auh *AppUserHandler) clearLegacyAuthCookies(c *fiber.Ctx, secure bool, sameSite string) {
+	domains := []string{
+		"",
+		strings.TrimSpace(os.Getenv("AUTH_COOKIE_DOMAIN")),
+		strings.TrimSpace(c.Hostname()),
+	}
+	seen := map[string]struct{}{}
+	for _, domain := range domains {
+		if _, ok := seen[domain]; ok {
+			continue
+		}
+		seen[domain] = struct{}{}
+		c.Cookie(&fiber.Cookie{
+			Name:     "blog_token",
+			Value:    "",
+			HTTPOnly: true,
+			Secure:   secure,
+			SameSite: sameSite,
+			Path:     "/",
+			Domain:   domain,
+			Expires:  time.Unix(0, 0),
+		})
+	}
 }
 
 func (auh *AppUserHandler) issueUserToken(ctx context.Context, user *models.AppUser) (string, error) {
