@@ -4,6 +4,7 @@ import (
 	"blog-server-go/common"
 	"blog-server-go/models"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
@@ -22,6 +23,10 @@ type AppUserHandler struct {
 }
 
 const discourseNoncePrefix = "discourse_sso_nonce:"
+
+type discourseNonceState struct {
+	FrontendBaseURL string `json:"frontendBaseUrl"`
+}
 
 func discourseConnectBaseURL() string {
 	return strings.TrimRight(os.Getenv("DISCOURSE_BASE_URL"), "/")
@@ -47,8 +52,73 @@ func frontendRedirectBaseURL() string {
 	return strings.TrimRight(strings.TrimSpace(os.Getenv("APP_FRONTEND_URL")), "/")
 }
 
-func buildFrontendRedirect(targetPath string, params map[string]string) string {
-	baseURL := frontendRedirectBaseURL()
+func normalizeFrontendBaseURL(raw string) (string, error) {
+	baseURL := strings.TrimRight(strings.TrimSpace(raw), "/")
+	if baseURL == "" {
+		return "", fmt.Errorf("empty frontend base url")
+	}
+
+	parsedURL, err := url.Parse(baseURL)
+	if err != nil {
+		return "", err
+	}
+	if parsedURL.Scheme == "" || parsedURL.Host == "" {
+		return "", fmt.Errorf("frontend base url must be absolute")
+	}
+
+	parsedURL.RawQuery = ""
+	parsedURL.Fragment = ""
+	return strings.TrimRight(parsedURL.String(), "/"), nil
+}
+
+func configuredFrontendBaseURLs() []string {
+	candidates := []string{frontendRedirectBaseURL()}
+	extraConfigured := strings.Split(os.Getenv("APP_FRONTEND_ALLOWED_URLS"), ",")
+	for _, item := range extraConfigured {
+		candidates = append(candidates, item)
+	}
+
+	seen := make(map[string]struct{}, len(candidates))
+	result := make([]string, 0, len(candidates))
+	for _, candidate := range candidates {
+		normalized, err := normalizeFrontendBaseURL(candidate)
+		if err != nil || normalized == "" {
+			continue
+		}
+		if _, ok := seen[normalized]; ok {
+			continue
+		}
+		seen[normalized] = struct{}{}
+		result = append(result, normalized)
+	}
+
+	return result
+}
+
+func resolveFrontendBaseURL(raw string) (string, error) {
+	if strings.TrimSpace(raw) == "" {
+		baseURL := frontendRedirectBaseURL()
+		if baseURL == "" {
+			return "/", nil
+		}
+		return baseURL, nil
+	}
+
+	normalized, err := normalizeFrontendBaseURL(raw)
+	if err != nil {
+		return "", err
+	}
+
+	for _, allowed := range configuredFrontendBaseURLs() {
+		if normalized == allowed {
+			return normalized, nil
+		}
+	}
+
+	return "", fmt.Errorf("frontend redirect is not allowed")
+}
+
+func buildFrontendRedirect(baseURL string, targetPath string, params map[string]string) string {
 	if baseURL == "" {
 		baseURL = "/"
 	}
@@ -70,6 +140,25 @@ func buildFrontendRedirect(targetPath string, params map[string]string) string {
 	}
 	redirectURL.RawQuery = query.Encode()
 	return redirectURL.String()
+}
+
+func marshalNonceState(state discourseNonceState) (string, error) {
+	payload, err := json.Marshal(state)
+	if err != nil {
+		return "", err
+	}
+	return string(payload), nil
+}
+
+func unmarshalNonceState(payload string) discourseNonceState {
+	var state discourseNonceState
+	if err := json.Unmarshal([]byte(payload), &state); err != nil {
+		return discourseNonceState{FrontendBaseURL: frontendRedirectBaseURL()}
+	}
+	if state.FrontendBaseURL == "" {
+		state.FrontendBaseURL = frontendRedirectBaseURL()
+	}
+	return state
 }
 
 func (auh *AppUserHandler) discourseConnectConfig() (string, string, string, error) {
@@ -241,6 +330,10 @@ func (auh *AppUserHandler) DiscourseLogin(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": err.Error()})
 	}
+	frontendBaseURL, err := resolveFrontendBaseURL(c.Query("redirect"))
+	if err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "Invalid redirect"})
+	}
 
 	requestParams := map[string]string{}
 	if prompt := strings.TrimSpace(c.Query("prompt")); prompt != "" {
@@ -257,7 +350,12 @@ func (auh *AppUserHandler) DiscourseLogin(c *fiber.Ctx) error {
 	}
 
 	ctx := context.Background()
-	if err := auh.Redis.Set(ctx, discourseNoncePrefix+nonce, "1", 10*time.Minute).Err(); err != nil {
+	nonceState, err := marshalNonceState(discourseNonceState{FrontendBaseURL: frontendBaseURL})
+	if err != nil {
+		log.Errorf("failed to marshal discourse nonce state: %v", err)
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to initialize discourse login"})
+	}
+	if err := auh.Redis.Set(ctx, discourseNoncePrefix+nonce, nonceState, 10*time.Minute).Err(); err != nil {
 		log.Errorf("failed to persist discourse connect nonce: %v", err)
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to initialize discourse login"})
 	}
@@ -274,7 +372,7 @@ func (auh *AppUserHandler) DiscourseCallback(c *fiber.Ctx) error {
 	payload := c.Query("sso")
 	sig := c.Query("sig")
 	if payload == "" || sig == "" {
-		return c.Redirect(buildFrontendRedirect("/auth/callback", map[string]string{
+		return c.Redirect(buildFrontendRedirect(frontendRedirectBaseURL(), "/auth/callback", map[string]string{
 			"status": "error",
 			"error":  "missing_discourse_payload",
 		}), fiber.StatusFound)
@@ -283,7 +381,7 @@ func (auh *AppUserHandler) DiscourseCallback(c *fiber.Ctx) error {
 	values, err := common.ParseDiscourseConnectPayload(secret, payload, sig)
 	if err != nil {
 		log.Errorf("failed to validate discourse connect payload: %v", err)
-		return c.Redirect(buildFrontendRedirect("/auth/callback", map[string]string{
+		return c.Redirect(buildFrontendRedirect(frontendRedirectBaseURL(), "/auth/callback", map[string]string{
 			"status": "error",
 			"error":  "invalid_discourse_payload",
 		}), fiber.StatusFound)
@@ -291,7 +389,7 @@ func (auh *AppUserHandler) DiscourseCallback(c *fiber.Ctx) error {
 
 	nonce := strings.TrimSpace(values.Get("nonce"))
 	if nonce == "" {
-		return c.Redirect(buildFrontendRedirect("/auth/callback", map[string]string{
+		return c.Redirect(buildFrontendRedirect(frontendRedirectBaseURL(), "/auth/callback", map[string]string{
 			"status": "error",
 			"error":  "missing_nonce",
 		}), fiber.StatusFound)
@@ -299,16 +397,19 @@ func (auh *AppUserHandler) DiscourseCallback(c *fiber.Ctx) error {
 
 	ctx := context.Background()
 	nonceKey := discourseNoncePrefix + nonce
-	if _, err := auh.Redis.GetDel(ctx, nonceKey).Result(); err != nil {
+	nonceStatePayload, err := auh.Redis.GetDel(ctx, nonceKey).Result()
+	if err != nil {
 		log.Errorf("invalid or expired discourse connect nonce: %v", err)
-		return c.Redirect(buildFrontendRedirect("/auth/callback", map[string]string{
+		return c.Redirect(buildFrontendRedirect(frontendRedirectBaseURL(), "/auth/callback", map[string]string{
 			"status": "error",
 			"error":  "invalid_nonce",
 		}), fiber.StatusFound)
 	}
+	nonceState := unmarshalNonceState(nonceStatePayload)
+	frontendBaseURL := nonceState.FrontendBaseURL
 
 	if strings.EqualFold(values.Get("failed"), "true") {
-		return c.Redirect(buildFrontendRedirect("/auth/callback", map[string]string{
+		return c.Redirect(buildFrontendRedirect(frontendBaseURL, "/auth/callback", map[string]string{
 			"status": "failed",
 		}), fiber.StatusFound)
 	}
@@ -316,7 +417,7 @@ func (auh *AppUserHandler) DiscourseCallback(c *fiber.Ctx) error {
 	user, err := auh.upsertDiscourseUser(values)
 	if err != nil {
 		log.Errorf("failed to upsert discourse user: %v", err)
-		return c.Redirect(buildFrontendRedirect("/auth/callback", map[string]string{
+		return c.Redirect(buildFrontendRedirect(frontendBaseURL, "/auth/callback", map[string]string{
 			"status": "error",
 			"error":  "user_sync_failed",
 		}), fiber.StatusFound)
@@ -325,14 +426,14 @@ func (auh *AppUserHandler) DiscourseCallback(c *fiber.Ctx) error {
 	token, err := auh.issueUserToken(ctx, user)
 	if err != nil {
 		log.Errorf("failed to issue user token: %v", err)
-		return c.Redirect(buildFrontendRedirect("/auth/callback", map[string]string{
+		return c.Redirect(buildFrontendRedirect(frontendBaseURL, "/auth/callback", map[string]string{
 			"status": "error",
 			"error":  "token_issue_failed",
 		}), fiber.StatusFound)
 	}
 
 	auh.setAuthCookie(c, token)
-	return c.Redirect(buildFrontendRedirect("/auth/callback", map[string]string{
+	return c.Redirect(buildFrontendRedirect(frontendBaseURL, "/auth/callback", map[string]string{
 		"status": "success",
 	}), fiber.StatusFound)
 }
